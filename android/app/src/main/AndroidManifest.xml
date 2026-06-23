@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Required on Android 13+ to show the playback notification / lock-screen controls.
+         FOREGROUND_SERVICE + FOREGROUND_SERVICE_MEDIA_PLAYBACK + the playback <service>
+         are merged in automatically from @rntp/player's own manifest. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
       android:name=".MainApplication"

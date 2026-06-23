@@ -1,45 +1,36 @@
 /**
- * Sample React Native App
- * https://github.com/facebook/react-native
+ * Mellow — test harness for the Paper UI + Phosphor icons + @rntp/player.
+ * Nothing is loaded at startup; tapping a song plays it and queues the rest.
  *
  * @format
  */
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import {StatusBar} from 'react-native';
+import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
+import {MD3DarkTheme, PaperProvider} from 'react-native-paper';
+import TestPlayerScreen from './src/screens/TestPlayerScreen';
+
+const theme = {
+  ...MD3DarkTheme,
+  colors: {
+    ...MD3DarkTheme.colors,
+    primary: '#89BEA4',
+    secondary: '#649288',
+    background: '#0f1110',
+  },
+};
 
 function App() {
-  const isDarkMode = useColorScheme() === 'dark';
-
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
+      <PaperProvider theme={theme}>
+        <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
+        <SafeAreaView style={{flex: 1, backgroundColor: theme.colors.background}}>
+          <TestPlayerScreen />
+        </SafeAreaView>
+      </PaperProvider>
     </SafeAreaProvider>
   );
 }
-
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
-
-  return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
-      />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
 
 export default App;
