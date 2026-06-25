@@ -1,35 +1,29 @@
 /**
- * Mellow — test harness for the Paper UI + Phosphor icons + @rntp/player.
- * Nothing is loaded at startup; tapping a song plays it and queues the rest.
+ * Mellow — Songs library screen (UI dev phase).
+ * Single page, mocked data; playback wired, navigation not yet.
  *
  * @format
  */
 
 import {StatusBar} from 'react-native';
+import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
-import {MD3DarkTheme, PaperProvider} from 'react-native-paper';
-import TestPlayerScreen from './src/screens/TestPlayerScreen';
-
-const theme = {
-  ...MD3DarkTheme,
-  colors: {
-    ...MD3DarkTheme.colors,
-    primary: '#89BEA4',
-    secondary: '#649288',
-    background: '#0f1110',
-  },
-};
+import {PaperProvider} from 'react-native-paper';
+import LibraryScreen from './src/screens/LibraryScreen';
+import {paperTheme, palette} from './src/theme/theme';
 
 function App() {
   return (
-    <SafeAreaProvider>
-      <PaperProvider theme={theme}>
-        <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
-        <SafeAreaView style={{flex: 1, backgroundColor: theme.colors.background}}>
-          <TestPlayerScreen />
-        </SafeAreaView>
-      </PaperProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{flex: 1}}>
+      <SafeAreaProvider>
+        <PaperProvider theme={paperTheme}>
+          <StatusBar barStyle="dark-content" backgroundColor={palette.mint} />
+          <SafeAreaView style={{flex: 1, backgroundColor: palette.mint}}>
+            <LibraryScreen />
+          </SafeAreaView>
+        </PaperProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
