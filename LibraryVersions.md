@@ -335,3 +335,11 @@ Build order:
 7. Wire up NowPlayingScreen with RNTP hooks (useProgress, useTrackPlayerEvents)
 8. Build full UI (Library, Playlists, PlaylistDetail, NowPlaying, Search)
 9. Theme with Paper Material You + Mellow brand colors (`#E6F1E0`, `#B1D3BA`, `#649288`, `#89BEA4`)
+
+
+
+
+
+
+next prompte :
+small notices fo the play and shuffle first they shouldnt be pill shaped it should be a row above it yes like above the list and that would be better and for the title above it should have the songs and playlists that's it , and the thing is that i should be able to scroll between the songs and playlists like the tabs should scroll between them like instagram does you see with a smooth annnimation too
