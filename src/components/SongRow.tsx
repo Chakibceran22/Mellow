@@ -36,10 +36,12 @@ function SongRow({song, active, onPress}: Props) {
         </Text>
       </View>
 
-      <Text variant="labelSmall" style={styles.duration}>
-        {formatDuration(song.durationSec)}
-      </Text>
-      <DotsThreeVertical size={20} color={palette.inkSoft} weight="bold" />
+      <View style={styles.trailing}>
+        <Text variant="labelSmall" style={styles.duration}>
+          {formatDuration(song.durationSec)}
+        </Text>
+        <DotsThreeVertical size={20} color={palette.inkSoft} weight="bold" />
+      </View>
     </Pressable>
   );
 }
@@ -60,7 +62,14 @@ const styles = StyleSheet.create({
   meta: {flex: 1},
   title: {fontWeight: '600'},
   sub: {color: palette.inkSoft, marginTop: 2},
-  duration: {color: palette.inkSoft},
+  trailing: {
+    minWidth: 66,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  duration: {color: palette.inkSoft, fontWeight: '600'},
 });
 
 export default memo(SongRow);

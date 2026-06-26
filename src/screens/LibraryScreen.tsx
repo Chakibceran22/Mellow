@@ -19,6 +19,7 @@ import {MagnifyingGlass, X} from 'phosphor-react-native';
 import {useActiveMediaItem} from '@rntp/player';
 import SongRow from '../components/SongRow';
 import PlayerSheet from '../components/PlayerSheet';
+import {ListSkeleton} from '../components/skeleton';
 import {MOCK_SONGS, type LibrarySong} from '../data/mockSongs';
 import {playFromList, setupPlayer} from '../player/setup';
 import {palette} from '../theme/theme';
@@ -30,6 +31,7 @@ export default function LibraryScreen() {
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('Songs');
   const [searchActive, setSearchActive] = useState(false);
+  const [loading, setLoading] = useState(true);
   const searchOpen = useSharedValue(0);
   const inputRef = useRef<TextInput>(null);
 
@@ -39,6 +41,13 @@ export default function LibraryScreen() {
   // Boot the audio engine once when the screen mounts.
   useEffect(() => {
     setupPlayer();
+  }, []);
+
+  // Simulate the initial library fetch (MediaStore via the TurboModule, later).
+  // Until it resolves we show the skeleton. Swap this for the real call.
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 1100);
+    return () => clearTimeout(t);
   }, []);
 
   // Drive the open/close animation and focus the field when it opens.
@@ -79,6 +88,8 @@ export default function LibraryScreen() {
     ),
     [songs, activeId],
   );
+
+  const renderSeparator = useCallback(() => <View style={styles.songSeparator} />, []);
 
   const tabsAnimStyle = useAnimatedStyle(() => ({
     opacity: interpolate(searchOpen.value, [0, 1], [1, 0], Extrapolation.CLAMP),
@@ -144,11 +155,14 @@ export default function LibraryScreen() {
         </Animated.View>
       </View>
 
-      {activeTab === 'Songs' ? (
+      {activeTab === 'Songs' && loading ? (
+        <ListSkeleton count={10} />
+      ) : activeTab === 'Songs' ? (
         <FlatList
           data={songs}
           keyExtractor={s => s.id}
           renderItem={renderItem}
+          ItemSeparatorComponent={renderSeparator}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listPad}
           keyboardShouldPersistTaps="handled"
@@ -206,6 +220,13 @@ const styles = StyleSheet.create({
 
   // Content
   listPad: {paddingTop: 6, paddingBottom: 92},
+  songSeparator: {
+    height: 1,
+    marginLeft: 91,
+    marginRight: 20,
+    backgroundColor: palette.sage,
+    opacity: 0.45,
+  },
   empty: {
     textAlign: 'center',
     color: palette.inkSoft,
