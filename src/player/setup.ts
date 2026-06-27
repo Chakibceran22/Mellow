@@ -1,4 +1,9 @@
-import TrackPlayer, {Event, PlayerCommand, type MediaItem} from '@rntp/player';
+import TrackPlayer, {
+  Event,
+  PlayerCommand,
+  RepeatMode,
+  type MediaItem,
+} from '@rntp/player';
 
 /**
  * App-level song shape. Later this is what the MusicLibrary TurboModule returns
@@ -69,6 +74,8 @@ export function setupPlayer() {
     console.warn('[player] remote stop listener', e);
   }
 
+  keepQueueLooping();
+
   isSetup = true;
 }
 
@@ -80,8 +87,17 @@ const toMediaItem = (s: Song): MediaItem => ({
   artworkUrl: s.artwork,
 });
 
+function keepQueueLooping() {
+  try {
+    TrackPlayer.setRepeatMode(RepeatMode.All);
+  } catch (e) {
+    console.warn('[player] set repeat mode', e);
+  }
+}
+
 function setQueueAndPlay(items: MediaItem[], index: number) {
   TrackPlayer.setMediaItems(items, index);
+  keepQueueLooping();
   TrackPlayer.play();
 }
 
