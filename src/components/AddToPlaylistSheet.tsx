@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -10,6 +10,7 @@ import {
 import {Text} from 'react-native-paper';
 import {Check, Playlist as PlaylistIcon, Plus} from 'phosphor-react-native';
 import BottomSheet from './BottomSheet';
+import SongCover from './SongCover';
 import {
   addSongToPlaylist,
   createPlaylist,
@@ -24,6 +25,7 @@ import {palette} from '../theme/theme';
 type Props = {
   visible: boolean;
   song: LibrarySong | null;
+  songs: LibrarySong[];
   onClose: () => void;
   /** Called after any add/remove so the caller can refresh playlist counts. */
   onChanged?: () => void;
@@ -38,6 +40,7 @@ type Props = {
 export default function AddToPlaylistSheet({
   visible,
   song,
+  songs,
   onClose,
   onChanged,
 }: Props) {
@@ -47,6 +50,14 @@ export default function AddToPlaylistSheet({
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const inputRef = useRef<TextInput>(null);
+  const songsById = useMemo(() => {
+    const map = new Map<string, LibrarySong>();
+    songs.forEach(s => map.set(s.id, s));
+    if (song) {
+      map.set(song.id, song);
+    }
+    return map;
+  }, [song, songs]);
 
   const load = useCallback(async () => {
     if (!song) {
@@ -107,6 +118,24 @@ export default function AddToPlaylistSheet({
         } else {
           await addSongToPlaylist(playlist.id, song.id);
         }
+        setPlaylists(prev =>
+          prev.map(item =>
+            item.id === playlist.id
+              ? {
+                  ...item,
+                  coverSongId:
+                    wasIn && item.coverSongId === song.id
+                      ? null
+                      : !wasIn && item.coverSongId == null
+                      ? song.id
+                      : item.coverSongId,
+                  songCount: wasIn
+                    ? Math.max(0, item.songCount - 1)
+                    : item.songCount + 1,
+                }
+              : item,
+          ),
+        );
         onChanged?.();
       } catch (e) {
         console.warn('[addToPlaylist] toggle failed', e);
@@ -150,29 +179,40 @@ export default function AddToPlaylistSheet({
   const renderItem = useCallback(
     ({item}: {item: Playlist}) => {
       const isIn = selected.has(item.id);
+      const coverSong = item.coverSongId ? songsById.get(item.coverSongId) : null;
       return (
-        <Pressable
-          onPress={() => toggle(item)}
-          android_ripple={{color: palette.hairline}}
-          style={({pressed}) => [styles.row, pressed && styles.pressed]}>
-          <View style={styles.thumb}>
-            <PlaylistIcon size={20} color={palette.deep} weight="fill" />
-          </View>
-          <View style={styles.meta}>
-            <Text variant="titleSmall" numberOfLines={1} style={styles.name}>
-              {item.name}
-            </Text>
-            <Text variant="bodySmall" numberOfLines={1} style={styles.sub}>
-              {item.songCount} {item.songCount === 1 ? 'song' : 'songs'}
-            </Text>
-          </View>
-          <View style={[styles.check, isIn && styles.checkOn]}>
-            {isIn ? <Check size={15} color="#FFFFFF" weight="bold" /> : null}
-          </View>
-        </Pressable>
+        <View style={styles.rowClip}>
+          <Pressable
+            onPress={() => toggle(item)}
+            android_ripple={{
+              color: palette.hairline,
+              borderless: false,
+              foreground: true,
+            }}
+            style={({pressed}) => [styles.row, pressed && styles.pressed]}>
+            {coverSong ? (
+              <SongCover uri={coverSong.artwork} size={THUMB} />
+            ) : (
+              <View style={styles.thumb}>
+                <PlaylistIcon size={20} color={palette.deep} weight="fill" />
+              </View>
+            )}
+            <View style={styles.meta}>
+              <Text variant="titleSmall" numberOfLines={1} style={styles.name}>
+                {item.name}
+              </Text>
+              <Text variant="bodySmall" numberOfLines={1} style={styles.sub}>
+                {item.songCount} {item.songCount === 1 ? 'song' : 'songs'}
+              </Text>
+            </View>
+            <View style={[styles.check, isIn && styles.checkOn]}>
+              {isIn ? <Check size={15} color="#FFFFFF" weight="bold" /> : null}
+            </View>
+          </Pressable>
+        </View>
       );
     },
-    [selected, toggle],
+    [selected, songsById, toggle],
   );
 
   return (
@@ -186,7 +226,6 @@ export default function AddToPlaylistSheet({
             {shownTitle}
           </Text>
         </View>
-        
       </View>
 
       {creating ? (
@@ -206,29 +245,46 @@ export default function AddToPlaylistSheet({
             maxLength={60}
             autoCorrect={false}
           />
-          <Pressable
-            onPress={submitCreate}
-            disabled={!newName.trim()}
-            style={({pressed}) => [
-              styles.createBtn,
-              !newName.trim() && styles.createBtnDisabled,
-              pressed && styles.pressed,
-            ]}>
-            <Text style={styles.createBtnLabel}>Create</Text>
-          </Pressable>
+          <View style={styles.createBtnClip}>
+            <Pressable
+              onPress={submitCreate}
+              disabled={!newName.trim()}
+              android_ripple={
+                newName.trim()
+                  ? {
+                      color: 'rgba(255,255,255,0.18)',
+                      borderless: false,
+                      foreground: true,
+                    }
+                  : undefined
+              }
+              style={({pressed}) => [
+                styles.createBtn,
+                !newName.trim() && styles.createBtnDisabled,
+                pressed && styles.pressed,
+              ]}>
+              <Text style={styles.createBtnLabel}>Create</Text>
+            </Pressable>
+          </View>
         </View>
       ) : (
-        <Pressable
-          onPress={startCreate}
-          android_ripple={{color: palette.hairline}}
-          style={({pressed}) => [styles.row, pressed && styles.pressed]}>
-          <View style={[styles.thumb, styles.thumbAccent]}>
-            <Plus size={20} color="#FFFFFF" weight="bold" />
-          </View>
-          <Text variant="titleSmall" style={[styles.name, styles.newLabel]}>
-            New playlist
-          </Text>
-        </Pressable>
+        <View style={styles.rowClip}>
+          <Pressable
+            onPress={startCreate}
+            android_ripple={{
+              color: palette.hairline,
+              borderless: false,
+              foreground: true,
+            }}
+            style={({pressed}) => [styles.row, pressed && styles.pressed]}>
+            <View style={[styles.thumb, styles.thumbAccent]}>
+              <Plus size={20} color="#FFFFFF" weight="bold" />
+            </View>
+            <Text variant="titleSmall" style={[styles.name, styles.newLabel]}>
+              New playlist
+            </Text>
+          </Pressable>
+        </View>
       )}
 
       <View style={styles.divider} />
@@ -291,6 +347,10 @@ const styles = StyleSheet.create({
   loader: {paddingVertical: 28},
 
   // Plain list rows on the white sheet.
+  rowClip: {
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -298,7 +358,7 @@ const styles = StyleSheet.create({
     minHeight: 60,
     paddingVertical: 8,
     paddingHorizontal: 6,
-    borderRadius: 12,
+    borderRadius: 14,
   },
   pressed: {opacity: 0.6},
   thumb: {
@@ -339,6 +399,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     color: palette.ink,
     fontSize: 15,
+  },
+  createBtnClip: {
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   createBtn: {
     paddingHorizontal: 16,

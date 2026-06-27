@@ -15,6 +15,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import {Portal} from 'react-native-paper';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {palette} from '../theme/theme';
 
@@ -38,8 +39,8 @@ type Props = {
  * anywhere on the sheet to dismiss.
  *
  * ⚠️ Deliberately NOT a React Native `Modal` (on Android a Modal renders outside
- * the root view, so gesture-handler never sees the drag). It's an absolute
- * overlay inside the root `GestureHandlerRootView`, same as PlayerSheet.
+ * the root view, so gesture-handler never sees the drag). It portals to the app
+ * root so sheets opened from nested pages still sit above the mini player.
  *
  * 🔑 The close animation is started DIRECTLY on the UI thread (gesture worklet /
  * a shared-value write) and `onClose` is only called when it finishes — it is
@@ -206,39 +207,32 @@ export default function BottomSheet({
     return null;
   }
 
-  // Negative insets so the overlay covers the FULL screen even though this tree
-  // sits inside a padded SafeAreaView.
-  const overlayInset = {
-    top: -insets.top,
-    bottom: -insets.bottom,
-    left: -insets.left,
-    right: -insets.right,
-  };
-
   return (
-    <View style={[styles.overlay, overlayInset]}>
-      <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]}>
-        <Pressable
-          style={styles.flex}
-          onPress={dismissable ? animateClose : undefined}
-        />
-      </Animated.View>
+    <Portal>
+      <View style={styles.overlay}>
+        <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]}>
+          <Pressable
+            style={styles.flex}
+            onPress={dismissable ? animateClose : undefined}
+          />
+        </Animated.View>
 
-      <Animated.View
-        style={[styles.sheet, {paddingBottom: insets.bottom + 12}, sheetStyle]}
-        onLayout={e => onLayout(e.nativeEvent.layout.height)}>
-        {/* The whole sheet is the drag target — `activeOffsetY([0,12])` means a
-            downward drag dismisses while taps on inner buttons still register. */}
-        <GestureDetector gesture={pan}>
-          <View>
-            <View style={styles.grabArea}>
-              <View style={styles.handle} />
+        <Animated.View
+          style={[styles.sheet, sheetStyle]}
+          onLayout={e => onLayout(e.nativeEvent.layout.height)}>
+          {/* The whole sheet is the drag target — `activeOffsetY([0,12])` means a
+              downward drag dismisses while taps on inner buttons still register. */}
+          <GestureDetector gesture={pan}>
+            <View style={[styles.sheetSurface, {paddingBottom: insets.bottom + 12}]}>
+              <View style={styles.grabArea}>
+                <View style={styles.handle} />
+              </View>
+              {children}
             </View>
-            {children}
-          </View>
-        </GestureDetector>
-      </Animated.View>
-    </View>
+          </GestureDetector>
+        </Animated.View>
+      </View>
+    </Portal>
   );
 }
 
@@ -246,23 +240,33 @@ const styles = StyleSheet.create({
   flex: {flex: 1},
   overlay: {
     position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     justifyContent: 'flex-end',
-    zIndex: 40,
-    elevation: 40,
+    zIndex: 1000,
+    elevation: 1000,
   },
   backdrop: {backgroundColor: 'rgba(35, 51, 45, 0.45)'},
   sheet: {
     maxHeight: '88%',
-    backgroundColor: palette.surface,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
-    paddingHorizontal: 16,
-    paddingTop: 6,
     shadowColor: palette.ink,
     shadowOpacity: 0.18,
     shadowRadius: 18,
     shadowOffset: {width: 0, height: -4},
     elevation: 16,
+  },
+  sheetSurface: {
+    maxHeight: '100%',
+    backgroundColor: palette.surface,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    overflow: 'hidden',
+    paddingHorizontal: 16,
+    paddingTop: 6,
   },
   grabArea: {alignItems: 'center', paddingVertical: 10},
   handle: {

@@ -64,6 +64,7 @@ export default function LibraryScreen() {
   const [renameSong, setRenameSong] = useState<LibrarySong | null>(null);
   const [deleteSong, setDeleteSong] = useState<LibrarySong | null>(null);
   const [denied, setDenied] = useState(false);
+  const [playlistsVersion, setPlaylistsVersion] = useState(0);
 
   // Measured page size — pages and the underline math are driven off this so it
   // stays correct across rotation / different screens.
@@ -226,6 +227,10 @@ export default function LibraryScreen() {
 
   const closeSongMenu = useCallback(() => {
     setMenuSong(null);
+  }, []);
+
+  const refreshPlaylists = useCallback(() => {
+    setPlaylistsVersion(v => v + 1);
   }, []);
 
   const onAddSongToPlaylist = useCallback(
@@ -418,7 +423,13 @@ export default function LibraryScreen() {
       );
     }
     if (tab === 'Playlists') {
-      return <PlaylistsPage />;
+      return (
+        <PlaylistsPage
+          songs={allSongs}
+          activeId={activeId}
+          refreshKey={playlistsVersion}
+        />
+      );
     }
     return (
       <View style={styles.placeholder}>
@@ -533,7 +544,9 @@ export default function LibraryScreen() {
       <AddToPlaylistSheet
         visible={addSong !== null}
         song={addSong}
+        songs={allSongs}
         onClose={() => setAddSong(null)}
+        onChanged={refreshPlaylists}
       />
       <RenameSheet
         visible={renameSong !== null}

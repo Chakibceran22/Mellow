@@ -25,18 +25,24 @@ type ActionRowProps = {
 
 function ActionRow({label, destructive, icon, onPress}: ActionRowProps) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      android_ripple={{color: palette.hairline}}
-      style={({pressed}) => [styles.actionRow, pressed && styles.pressed]}>
-      <View style={styles.iconWrap}>{icon}</View>
-      <Text
-        variant="titleSmall"
-        style={[styles.actionLabel, destructive && styles.destructiveLabel]}>
-        {label}
-      </Text>
-    </Pressable>
+    <View style={styles.actionClip}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onPress}
+        android_ripple={{
+          color: palette.hairline,
+          borderless: false,
+          foreground: true,
+        }}
+        style={({pressed}) => [styles.actionRow, pressed && styles.pressed]}>
+        <View style={styles.iconWrap}>{icon}</View>
+        <Text
+          variant="titleSmall"
+          style={[styles.actionLabel, destructive && styles.destructiveLabel]}>
+          {label}
+        </Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -90,12 +96,16 @@ export default function SongActionsSheet({
 const styles = StyleSheet.create({
   actions: {paddingTop: 2, paddingBottom: 4},
   // Simple list rows with bare icons — no tinted circle behind them.
+  actionClip: {
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
   actionRow: {
     minHeight: 54,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 6,
   },
   iconWrap: {

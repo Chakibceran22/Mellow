@@ -55,26 +55,38 @@ export default function ConfirmSheet({
         ) : null}
 
         <View style={styles.actions}>
-          <Pressable
-            onPress={onClose}
-            android_ripple={{color: palette.hairline}}
-            style={({pressed}) => [
-              styles.btn,
-              styles.cancelBtn,
-              pressed && styles.pressed,
-            ]}>
-            <Text style={styles.cancelLabel}>{cancelLabel}</Text>
-          </Pressable>
-          <Pressable
-            onPress={onConfirm}
-            android_ripple={{color: 'rgba(255,255,255,0.18)'}}
-            style={({pressed}) => [
-              styles.btn,
-              destructive ? styles.destructiveBtn : styles.confirmBtn,
-              pressed && styles.pressed,
-            ]}>
-            <Text style={styles.confirmLabel}>{confirmLabel}</Text>
-          </Pressable>
+          <View style={styles.btnClip}>
+            <Pressable
+              onPress={onClose}
+              android_ripple={{
+                color: palette.hairline,
+                borderless: false,
+                foreground: true,
+              }}
+              style={({pressed}) => [
+                styles.btn,
+                styles.cancelBtn,
+                pressed && styles.pressed,
+              ]}>
+              <Text style={styles.cancelLabel}>{cancelLabel}</Text>
+            </Pressable>
+          </View>
+          <View style={styles.btnClip}>
+            <Pressable
+              onPress={onConfirm}
+              android_ripple={{
+                color: 'rgba(255,255,255,0.18)',
+                borderless: false,
+                foreground: true,
+              }}
+              style={({pressed}) => [
+                styles.btn,
+                destructive ? styles.destructiveBtn : styles.confirmBtn,
+                pressed && styles.pressed,
+              ]}>
+              <Text style={styles.confirmLabel}>{confirmLabel}</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </BottomSheet>
@@ -86,8 +98,12 @@ const styles = StyleSheet.create({
   title: {color: palette.ink, fontWeight: '700'},
   message: {color: palette.inkSoft, lineHeight: 20},
   actions: {flexDirection: 'row', gap: 10, marginTop: 8},
-  btn: {
+  btnClip: {
     flex: 1,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  btn: {
     height: 48,
     borderRadius: 14,
     alignItems: 'center',

@@ -74,28 +74,44 @@ export default function RenameSheet({
         />
 
         <View style={styles.actions}>
-          <Pressable
-            onPress={onClose}
-            android_ripple={{color: palette.hairline}}
-            style={({pressed}) => [
-              styles.btn,
-              styles.cancelBtn,
-              pressed && styles.pressed,
-            ]}>
-            <Text style={styles.cancelLabel}>Cancel</Text>
-          </Pressable>
-          <Pressable
-            onPress={submit}
-            disabled={!canSave}
-            android_ripple={{color: 'rgba(255,255,255,0.18)'}}
-            style={({pressed}) => [
-              styles.btn,
-              styles.saveBtn,
-              !canSave && styles.saveBtnDisabled,
-              pressed && styles.pressed,
-            ]}>
-            <Text style={styles.saveLabel}>{saveLabel}</Text>
-          </Pressable>
+          <View style={styles.btnClip}>
+            <Pressable
+              onPress={onClose}
+              android_ripple={{
+                color: palette.hairline,
+                borderless: false,
+                foreground: true,
+              }}
+              style={({pressed}) => [
+                styles.btn,
+                styles.cancelBtn,
+                pressed && styles.pressed,
+              ]}>
+              <Text style={styles.cancelLabel}>Cancel</Text>
+            </Pressable>
+          </View>
+          <View style={styles.btnClip}>
+            <Pressable
+              onPress={submit}
+              disabled={!canSave}
+              android_ripple={
+                canSave
+                  ? {
+                      color: 'rgba(255,255,255,0.18)',
+                      borderless: false,
+                      foreground: true,
+                    }
+                  : undefined
+              }
+              style={({pressed}) => [
+                styles.btn,
+                styles.saveBtn,
+                !canSave && styles.saveBtnDisabled,
+                pressed && styles.pressed,
+              ]}>
+              <Text style={styles.saveLabel}>{saveLabel}</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </BottomSheet>
@@ -114,8 +130,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   actions: {flexDirection: 'row', gap: 10},
-  btn: {
+  btnClip: {
     flex: 1,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  btn: {
     height: 48,
     borderRadius: 14,
     alignItems: 'center',
