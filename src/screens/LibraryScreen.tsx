@@ -1,7 +1,10 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
+  Dimensions,
   FlatList,
+  LayoutChangeEvent,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -11,29 +14,68 @@ import {Text} from 'react-native-paper';
 import Animated, {
   Extrapolation,
   interpolate,
+  useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import {MagnifyingGlass, X} from 'phosphor-react-native';
+import {MagnifyingGlass, Play, Shuffle, X} from 'phosphor-react-native';
 import {useActiveMediaItem} from '@rntp/player';
 import SongRow from '../components/SongRow';
 import PlayerSheet from '../components/PlayerSheet';
+import SongActionsSheet from '../components/SongActionsSheet';
+import AddToPlaylistSheet from '../components/AddToPlaylistSheet';
+import RenameSheet from '../components/RenameSheet';
+import ConfirmSheet from '../components/ConfirmSheet';
+import PlaylistsPage from './PlaylistsPage';
 import {ListSkeleton} from '../components/skeleton';
-import {MOCK_SONGS, type LibrarySong} from '../data/mockSongs';
-import {playFromList, setupPlayer} from '../player/setup';
+import {type LibrarySong} from '../data/mockSongs';
+import {fetchLibrarySongs} from '../services/musicLibrary';
+import {playFromList, playShuffled, setupPlayer} from '../player/setup';
 import {palette} from '../theme/theme';
 
-// Top navigation — horizontally scrollable. Only "Songs" is built for now.
-const TABS = ['Songs', 'Albums', 'Artists', 'Playlists', 'Favorites'] as const;
+// Top navigation — each entry is a full, swipeable page. "Songs" and
+// "Playlists" are built; the rest are placeholders for now.
+const TABS = ['Songs', 'Playlists'] as const;
+
+// Horizontal inset that pulls the underline in to sit under the tab's text
+// (matches the tab's horizontal padding) instead of spanning the tap target.
+const INDICATOR_INSET = 16;
+
+// A touch longer than BottomSheet's close animation, so heavy list mutations
+// (delete / rename) run AFTER the sheet has slid away — never mid-animation.
+const CLOSE_SETTLE_MS = 260;
+
+type TabLayout = {x: number; width: number};
 
 export default function LibraryScreen() {
   const [query, setQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<(typeof TABS)[number]>('Songs');
+  const [activeIndex, setActiveIndex] = useState(0);
   const [searchActive, setSearchActive] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [allSongs, setAllSongs] = useState<LibrarySong[]>([]);
+  const [menuSong, setMenuSong] = useState<LibrarySong | null>(null);
+  // Sub-sheets opened from the song actions menu — one song each, or null.
+  const [addSong, setAddSong] = useState<LibrarySong | null>(null);
+  const [renameSong, setRenameSong] = useState<LibrarySong | null>(null);
+  const [deleteSong, setDeleteSong] = useState<LibrarySong | null>(null);
+  const [denied, setDenied] = useState(false);
+
+  // Measured page size — pages and the underline math are driven off this so it
+  // stays correct across rotation / different screens.
+  const [size, setSize] = useState(() => {
+    const w = Dimensions.get('window');
+    return {width: w.width, height: w.height};
+  });
+  const [tabLayouts, setTabLayouts] = useState<TabLayout[]>([]);
+  const [tabBarWidth, setTabBarWidth] = useState(0);
+
   const searchOpen = useSharedValue(0);
+  const scrollX = useSharedValue(0); // pager horizontal offset, in px
   const inputRef = useRef<TextInput>(null);
+  const pagerRef = useRef<ScrollView>(null);
+  const tabBarRef = useRef<ScrollView>(null);
 
   const active = useActiveMediaItem();
   const activeId = active?.mediaId ?? null;
@@ -43,12 +85,27 @@ export default function LibraryScreen() {
     setupPlayer();
   }, []);
 
-  // Simulate the initial library fetch (MediaStore via the TurboModule, later).
-  // Until it resolves we show the skeleton. Swap this for the real call.
-  useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 1100);
-    return () => clearTimeout(t);
+  // Pull the on-device library from the MusicLibrary TurboModule. `initial`
+  // shows the skeleton; `refresh` drives the pull-to-refresh spinner instead.
+  const load = useCallback(async (mode: 'initial' | 'refresh') => {
+    if (mode === 'refresh') {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    try {
+      const {songs: result, reason} = await fetchLibrarySongs();
+      setAllSongs(result);
+      setDenied(reason === 'permission-denied');
+    } finally {
+      setRefreshing(false);
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    load('initial');
+  }, [load]);
 
   // Drive the open/close animation and focus the field when it opens.
   useEffect(() => {
@@ -62,15 +119,43 @@ export default function LibraryScreen() {
   const songs = useMemo<LibrarySong[]>(() => {
     const q = query.trim().toLowerCase();
     if (!q) {
-      return MOCK_SONGS;
+      return allSongs;
     }
-    return MOCK_SONGS.filter(
+    return allSongs.filter(
       s =>
         s.title.toLowerCase().includes(q) ||
         s.artist.toLowerCase().includes(q) ||
         s.album.toLowerCase().includes(q),
     );
-  }, [query]);
+  }, [query, allSongs]);
+
+  // Keep the active tab comfortably in view inside the (scrollable) tab bar.
+  const ensureTabVisible = useCallback(
+    (index: number) => {
+      const l = tabLayouts[index];
+      const barW = tabBarWidth || size.width;
+      if (!l || barW <= 0) {
+        return;
+      }
+      const target = l.x + l.width / 2 - barW / 2;
+      tabBarRef.current?.scrollTo({x: Math.max(0, target), animated: true});
+    },
+    [tabLayouts, tabBarWidth, size.width],
+  );
+
+  const goToPage = useCallback(
+    (index: number) => {
+      setActiveIndex(index);
+      pagerRef.current?.scrollTo({x: index * size.width, animated: true});
+      ensureTabVisible(index);
+    },
+    [size.width, ensureTabVisible],
+  );
+
+  const openSearch = useCallback(() => {
+    setSearchActive(true);
+    goToPage(0); // searching filters the Songs page — make sure it's the one shown
+  }, [goToPage]);
 
   const closeSearch = () => {
     setSearchActive(false);
@@ -78,18 +163,161 @@ export default function LibraryScreen() {
     inputRef.current?.blur();
   };
 
+  const onTabLayout = useCallback(
+    (index: number) => (e: LayoutChangeEvent) => {
+      const {x, width} = e.nativeEvent.layout;
+      setTabLayouts(prev => {
+        const cur = prev[index];
+        if (cur && cur.x === x && cur.width === width) {
+          return prev;
+        }
+        const next = prev.slice();
+        next[index] = {x, width};
+        return next;
+      });
+    },
+    [],
+  );
+
+  const onPagerLayout = useCallback((e: LayoutChangeEvent) => {
+    const {width, height} = e.nativeEvent.layout;
+    setSize(prev =>
+      prev.width === width && prev.height === height ? prev : {width, height},
+    );
+  }, []);
+
+  const onPagerScroll = useAnimatedScrollHandler({
+    onScroll: e => {
+      scrollX.value = e.contentOffset.x;
+    },
+  });
+
+  const onPageSettled = useCallback(
+    (e: {nativeEvent: {contentOffset: {x: number}}}) => {
+      if (size.width <= 0) {
+        return;
+      }
+      const index = Math.round(e.nativeEvent.contentOffset.x / size.width);
+      if (index !== activeIndex) {
+        setActiveIndex(index);
+        ensureTabVisible(index);
+      }
+    },
+    [size.width, activeIndex, ensureTabVisible],
+  );
+
   const renderItem = useCallback(
     ({item, index}: {item: LibrarySong; index: number}) => (
       <SongRow
         song={item}
         active={item.id === activeId}
         onPress={() => playFromList(songs, index)}
+        onMorePress={() => setMenuSong(item)}
       />
     ),
     [songs, activeId],
   );
 
-  const renderSeparator = useCallback(() => <View style={styles.songSeparator} />, []);
+  const closeSongMenu = useCallback(() => {
+    setMenuSong(null);
+  }, []);
+
+  // Closing a sheet animates out (~200ms). Wait that out before opening the next
+  // so we never stack two native Modals on Android (only the top would render).
+  const openAfterClose = useCallback((fn: () => void) => {
+    setTimeout(fn, 240);
+  }, []);
+
+  const onAddSongToPlaylist = useCallback(
+    (song: LibrarySong) => openAfterClose(() => setAddSong(song)),
+    [openAfterClose],
+  );
+
+  const onRenameSong = useCallback(
+    (song: LibrarySong) => openAfterClose(() => setRenameSong(song)),
+    [openAfterClose],
+  );
+
+  const onDeleteSong = useCallback(
+    (song: LibrarySong) => openAfterClose(() => setDeleteSong(song)),
+    [openAfterClose],
+  );
+
+  // Rename / delete act on the in-memory library list for now (the MusicLibrary
+  // native module is read-only — writing back to MediaStore needs native work).
+  //
+  // Close the sheet FIRST, then mutate the (potentially long) list AFTER its exit
+  // animation — rebuilding the FlatList is heavy and, run synchronously, it
+  // stalls the sheet's slide-out on the JS thread (the "lag on the last stretch").
+  const applyRename = useCallback(
+    (name: string) => {
+      if (!renameSong) {
+        return;
+      }
+      const id = renameSong.id;
+      setRenameSong(null);
+      setTimeout(() => {
+        setAllSongs(list =>
+          list.map(s => (s.id === id ? {...s, title: name} : s)),
+        );
+      }, CLOSE_SETTLE_MS);
+    },
+    [renameSong],
+  );
+
+  const applyDelete = useCallback(() => {
+    if (!deleteSong) {
+      return;
+    }
+    const id = deleteSong.id;
+    setDeleteSong(null);
+    setTimeout(() => {
+      setAllSongs(list => list.filter(s => s.id !== id));
+    }, CLOSE_SETTLE_MS);
+  }, [deleteSong]);
+
+  const renderSeparator = useCallback(
+    () => <View style={styles.songSeparator} />,
+    [],
+  );
+
+  // Play All / Shuffle — sits above the rows and scrolls with the list. Both act
+  // on the songs currently shown (so they respect an active search filter too).
+  const ListHeader = useCallback(
+    () => (
+      <View style={styles.actionsRow}>
+        <Pressable
+          onPress={() => playFromList(songs, 0)}
+          android_ripple={{color: 'rgba(255,255,255,0.18)'}}
+          style={({pressed}) => [
+            styles.actionBtn,
+            styles.playAllBtn,
+            pressed && styles.actionPressed,
+          ]}
+        >
+          <Play size={18} color="#FFFFFF" weight="fill" />
+          <Text variant="labelLarge" style={styles.playAllLabel}>
+            Play all
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => playShuffled(songs)}
+          android_ripple={{color: palette.hairline}}
+          style={({pressed}) => [
+            styles.actionBtn,
+            styles.shuffleBtn,
+            pressed && styles.actionPressed,
+          ]}
+        >
+          <Shuffle size={18} color={palette.deep} weight="bold" />
+          <Text variant="labelLarge" style={styles.shuffleLabel}>
+            Shuffle
+          </Text>
+        </Pressable>
+      </View>
+    ),
+    [songs],
+  );
 
   const tabsAnimStyle = useAnimatedStyle(() => ({
     opacity: interpolate(searchOpen.value, [0, 1], [1, 0], Extrapolation.CLAMP),
@@ -97,39 +325,129 @@ export default function LibraryScreen() {
   const searchAnimStyle = useAnimatedStyle(() => ({
     opacity: searchOpen.value,
     transform: [
-      {translateX: interpolate(searchOpen.value, [0, 1], [40, 0], Extrapolation.CLAMP)},
+      {
+        translateX: interpolate(
+          searchOpen.value,
+          [0, 1],
+          [40, 0],
+          Extrapolation.CLAMP,
+        ),
+      },
     ],
   }));
+
+  // The sliding underline: tracks the pager so it glides + resizes between tabs
+  // as you swipe, and lands centered under whichever tab you settle on.
+  const indicatorStyle = useAnimatedStyle(() => {
+    if (tabLayouts.length < TABS.length || size.width <= 0) {
+      return {opacity: 0};
+    }
+    const progress = scrollX.value / size.width; // 0..(TABS.length-1)
+    const input = TABS.map((_, i) => i);
+    const xs = tabLayouts.map(l => l.x + INDICATOR_INSET);
+    const widths = tabLayouts.map(l =>
+      Math.max(0, l.width - INDICATOR_INSET * 2),
+    );
+    return {
+      opacity: 1,
+      width: interpolate(progress, input, widths, Extrapolation.CLAMP),
+      transform: [
+        {translateX: interpolate(progress, input, xs, Extrapolation.CLAMP)},
+      ],
+    };
+  });
+
+  const renderPage = (tab: (typeof TABS)[number]) => {
+    if (tab === 'Songs') {
+      return loading ? (
+        <ListSkeleton count={10} />
+      ) : (
+        <FlatList
+          data={songs}
+          keyExtractor={s => s.id}
+          renderItem={renderItem}
+          ItemSeparatorComponent={renderSeparator}
+          ListHeaderComponent={songs.length ? ListHeader : null}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listPad}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => load('refresh')}
+              tintColor={palette.deep}
+              colors={[palette.deep]}
+              progressBackgroundColor={palette.surface}
+            />
+          }
+          ListEmptyComponent={
+            <Text style={styles.empty}>
+              {denied
+                ? 'Allow music access to see your library, then pull down to refresh.'
+                : query
+                ? `No songs match “${query}”.`
+                : 'No music found on this device.'}
+            </Text>
+          }
+        />
+      );
+    }
+    if (tab === 'Playlists') {
+      return <PlaylistsPage />;
+    }
+    return (
+      <View style={styles.placeholder}>
+        <Text variant="titleMedium" style={styles.placeholderTitle}>
+          {tab}
+        </Text>
+        <Text variant="bodySmall" style={styles.placeholderSub}>
+          Coming soon
+        </Text>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.flex}>
       <View style={styles.header}>
-        {/* Scrollable tab nav + search trigger */}
+        {/* Scrollable tab nav + sliding underline + search trigger */}
         <Animated.View
           style={[styles.tabsRow, tabsAnimStyle]}
-          pointerEvents={searchActive ? 'none' : 'auto'}>
+          pointerEvents={searchActive ? 'none' : 'auto'}
+        >
           <ScrollView
+            ref={tabBarRef}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.tabsContent}
-            keyboardShouldPersistTaps="handled">
-            {TABS.map(tab => {
-              const isActive = tab === activeTab;
+            onLayout={e => setTabBarWidth(e.nativeEvent.layout.width)}
+            keyboardShouldPersistTaps="handled"
+          >
+            {TABS.map((tab, i) => {
+              const isActive = i === activeIndex;
               return (
                 <Pressable
                   key={tab}
-                  onPress={() => setActiveTab(tab)}
-                  style={[styles.tab, isActive && styles.tabActive]}>
+                  onLayout={onTabLayout(i)}
+                  onPress={() => goToPage(i)}
+                  style={styles.tab}
+                >
                   <Text
                     variant="labelLarge"
-                    style={[styles.tabText, isActive && styles.tabTextActive]}>
+                    style={[styles.tabText, isActive && styles.tabTextActive]}
+                  >
                     {tab}
                   </Text>
                 </Pressable>
               );
             })}
+            <Animated.View style={[styles.indicator, indicatorStyle]} />
           </ScrollView>
-          <Pressable onPress={() => setSearchActive(true)} hitSlop={10} style={styles.searchIcon}>
+          <Pressable
+            onPress={openSearch}
+            hitSlop={10}
+            style={styles.searchIcon}
+          >
             <MagnifyingGlass size={22} color={palette.ink} weight="bold" />
           </Pressable>
         </Animated.View>
@@ -137,7 +455,8 @@ export default function LibraryScreen() {
         {/* Animated search bar (expands over the tabs) */}
         <Animated.View
           style={[styles.searchOverlay, searchAnimStyle]}
-          pointerEvents={searchActive ? 'auto' : 'none'}>
+          pointerEvents={searchActive ? 'auto' : 'none'}
+        >
           <MagnifyingGlass size={18} color={palette.inkSoft} />
           <TextInput
             ref={inputRef}
@@ -155,33 +474,62 @@ export default function LibraryScreen() {
         </Animated.View>
       </View>
 
-      {activeTab === 'Songs' && loading ? (
-        <ListSkeleton count={10} />
-      ) : activeTab === 'Songs' ? (
-        <FlatList
-          data={songs}
-          keyExtractor={s => s.id}
-          renderItem={renderItem}
-          ItemSeparatorComponent={renderSeparator}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listPad}
+      {/* Swipeable category pages */}
+      <View style={styles.flex} onLayout={onPagerLayout}>
+        <Animated.ScrollView
+          ref={pagerRef}
+          horizontal
+          pagingEnabled
+          directionalLockEnabled
+          showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={onPagerScroll}
+          onMomentumScrollEnd={onPageSettled}
           keyboardShouldPersistTaps="handled"
-          ListEmptyComponent={
-            <Text style={styles.empty}>No songs match “{query}”.</Text>
-          }
-        />
-      ) : (
-        <View style={styles.placeholder}>
-          <Text variant="titleMedium" style={styles.placeholderTitle}>
-            {activeTab}
-          </Text>
-          <Text variant="bodySmall" style={styles.placeholderSub}>
-            Coming soon
-          </Text>
-        </View>
-      )}
+        >
+          {TABS.map(tab => (
+            <View key={tab} style={{width: size.width, height: size.height}}>
+              {renderPage(tab)}
+            </View>
+          ))}
+        </Animated.ScrollView>
+      </View>
 
       <PlayerSheet />
+      <SongActionsSheet
+        visible={menuSong !== null}
+        song={menuSong}
+        onClose={closeSongMenu}
+        onAddToPlaylist={onAddSongToPlaylist}
+        onRename={onRenameSong}
+        onDelete={onDeleteSong}
+      />
+      <AddToPlaylistSheet
+        visible={addSong !== null}
+        song={addSong}
+        onClose={() => setAddSong(null)}
+      />
+      <RenameSheet
+        visible={renameSong !== null}
+        title="Rename song"
+        placeholder="Song title"
+        initialValue={renameSong?.title ?? ''}
+        onSave={applyRename}
+        onClose={() => setRenameSong(null)}
+      />
+      <ConfirmSheet
+        visible={deleteSong !== null}
+        title="Delete song?"
+        message={
+          deleteSong
+            ? `“${deleteSong.title}” will be removed from your library list.`
+            : undefined
+        }
+        confirmLabel="Delete"
+        destructive
+        onConfirm={applyDelete}
+        onClose={() => setDeleteSong(null)}
+      />
     </View>
   );
 }
@@ -191,15 +539,27 @@ const ROW_H = 44;
 
 const styles = StyleSheet.create({
   flex: {flex: 1},
-  header: {paddingTop: HEADER_PAD_TOP, paddingHorizontal: 20, paddingBottom: 10},
+  header: {
+    paddingTop: HEADER_PAD_TOP,
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+  },
 
   // Tabs
   tabsRow: {flexDirection: 'row', alignItems: 'center', height: ROW_H},
   tabsContent: {alignItems: 'center', paddingRight: 8, gap: 8},
-  tab: {paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20},
-  tabActive: {backgroundColor: palette.deep},
+  tab: {paddingHorizontal: INDICATOR_INSET, paddingVertical: 8},
   tabText: {color: palette.inkSoft, fontWeight: '600'},
-  tabTextActive: {color: '#FFFFFF'},
+  tabTextActive: {color: palette.deep, fontWeight: '700'},
+  // Sliding underline — same deep-green as the glassy selected state used to be.
+  indicator: {
+    position: 'absolute',
+    left: 0,
+    bottom: 2,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: palette.deep,
+  },
   searchIcon: {paddingLeft: 12, paddingVertical: 4},
 
   // Animated search bar
@@ -217,6 +577,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   searchInput: {flex: 1, paddingVertical: 0, color: palette.ink, fontSize: 15},
+
+  // Play all / Shuffle
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 6,
+    paddingBottom: 14,
+  },
+  actionBtn: {
+    flex: 1,
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 14,
+  },
+  playAllBtn: {
+    backgroundColor: palette.deep,
+    shadowColor: palette.deep,
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    shadowOffset: {width: 0, height: 3},
+    elevation: 3,
+  },
+  shuffleBtn: {
+    backgroundColor: palette.surfaceAlt,
+    borderWidth: 1,
+    borderColor: palette.sage,
+  },
+  actionPressed: {opacity: 0.85},
+  playAllLabel: {color: '#FFFFFF', fontWeight: '700'},
+  shuffleLabel: {color: palette.deep, fontWeight: '700'},
 
   // Content
   listPad: {paddingTop: 6, paddingBottom: 92},

@@ -20,6 +20,7 @@ import TrackPlayer, {
 } from '@rntp/player';
 import SongCover from './SongCover';
 import GreenGlassBackground from './GreenGlassBackground';
+import {resumePlayback} from '../player/setup';
 import {formatDuration} from '../data/mockSongs';
 import {palette} from '../theme/theme';
 
@@ -37,9 +38,23 @@ const WHITE_FAINT = 'rgba(255,255,255,0.28)';
 export default function PlayerSheet() {
   const active = useActiveMediaItem();
   const activeId = active?.mediaId ?? null;
-  const playing = useIsPlaying();
+  // `useIsPlaying` only re-reads native state on event / AppState change. But
+  // swiping away the media notification stops Media3's service WITHOUT either —
+  // the app stays foreground — so the hook goes stale and the button freezes.
+  // Reconcile against the real native state once a second so it always recovers.
+  const hookPlaying = useIsPlaying();
+  const [playing, setPlaying] = useState(hookPlaying);
   // ⚠️ interval is in SECONDS (default 1). 0.25 → smooth ~4 updates/sec.
   const {position, duration} = useProgress(0.25);
+
+  useEffect(() => {
+    setPlaying(hookPlaying);
+  }, [hookPlaying]);
+
+  useEffect(() => {
+    const id = setInterval(() => setPlaying(TrackPlayer.isPlaying()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   // 0 = collapsed mini bar, 1 = expanded peek card.
   const expand = useSharedValue(0);
@@ -121,7 +136,18 @@ export default function PlayerSheet() {
   const openSheet = () => {
     expand.value = withSpring(1, SPRING);
   };
-  const togglePlay = () => (playing ? TrackPlayer.pause() : TrackPlayer.play());
+  // Re-read the REAL native state on press (our `playing` may be a beat stale),
+  // and resume via the resilient path so a torn-down session is rebuilt instead
+  // of leaving the button doing nothing.
+  const togglePlay = () => {
+    if (TrackPlayer.isPlaying()) {
+      TrackPlayer.pause();
+      setPlaying(false);
+    } else {
+      resumePlayback();
+      setPlaying(true);
+    }
+  };
 
   return (
     <Animated.View style={[styles.sheet, sheetStyle]}>

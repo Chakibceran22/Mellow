@@ -19,6 +19,10 @@ export const palette = {
   surfaceAlt: '#F1F7EF', // search field / chips
   tint: '#D9EAE0', // soft green wash for the active/selected row
 
+  // Destructive actions — a muted terracotta that still belongs to the pastel
+  // set (no harsh pure red).
+  clay: '#C26B5E',
+
   // Player sheet — a translucent green panel with dark text (cozy, not white).
   glass: 'rgba(137, 190, 164, 0.95)', // == green @ 95% opacity
   onGreenSoft: 'rgba(35, 51, 45, 0.62)', // muted dark text/icons on the green sheet

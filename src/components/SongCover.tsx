@@ -19,11 +19,15 @@ export default function SongCover({uri, size = 54}: Props) {
         styles.wrap,
         {width: size, height: size, borderRadius: radius},
       ]}>
-      <Image
-        source={{uri}}
-        style={{width: size, height: size, borderRadius: radius}}
-        resizeMode="cover"
-      />
+      {/* Only mount the Image for a real URI — an empty string warns ("source.uri
+          should not be an empty string") and the tinted wrap is the placeholder. */}
+      {uri ? (
+        <Image
+          source={{uri}}
+          style={{width: size, height: size, borderRadius: radius}}
+          resizeMode="cover"
+        />
+      ) : null}
     </View>
   );
 }

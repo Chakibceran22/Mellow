@@ -10,9 +10,10 @@ type Props = {
   song: LibrarySong;
   active: boolean;
   onPress: () => void;
+  onMorePress: () => void;
 };
 
-function SongRow({song, active, onPress}: Props) {
+function SongRow({song, active, onPress, onMorePress}: Props) {
   return (
     <Pressable
       onPress={onPress}
@@ -21,14 +22,16 @@ function SongRow({song, active, onPress}: Props) {
         styles.row,
         active && styles.rowActive,
         pressed && styles.rowPressed,
-      ]}>
+      ]}
+    >
       <SongCover uri={song.artwork} />
 
       <View style={styles.meta}>
         <Text
           variant="titleMedium"
           numberOfLines={1}
-          style={[styles.title, {color: active ? palette.deep : palette.ink}]}>
+          style={[styles.title, {color: active ? palette.deep : palette.ink}]}
+        >
           {song.title}
         </Text>
         <Text variant="bodySmall" numberOfLines={1} style={styles.sub}>
@@ -40,7 +43,23 @@ function SongRow({song, active, onPress}: Props) {
         <Text variant="labelSmall" style={styles.duration}>
           {formatDuration(song.durationSec)}
         </Text>
-        <DotsThreeVertical size={20} color={palette.inkSoft} weight="bold" />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`More options for ${song.title}`}
+          hitSlop={8}
+          onPress={e => {
+            e.stopPropagation();
+            onMorePress();
+          }}
+          android_ripple={{
+            color: palette.hairline,
+            borderless: true,
+            radius: 18,
+          }}
+          style={({pressed}) => [styles.moreBtn, pressed && styles.rowPressed]}
+        >
+          <DotsThreeVertical size={20} color={palette.inkSoft} weight="bold" />
+        </Pressable>
       </View>
     </Pressable>
   );
@@ -70,6 +89,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   duration: {color: palette.inkSoft, fontWeight: '600'},
+  moreBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
 
 export default memo(SongRow);
