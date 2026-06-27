@@ -645,7 +645,11 @@ export default function PlaylistsPage({songs, activeId, refreshKey}: Props) {
                   onPress={shuffleSelectedPlaylist}
                   android_ripple={
                     canPlayPlaylist
-                      ? {color: palette.hairline, borderless: true, radius: 22}
+                      ? {
+                          color: palette.hairline,
+                          borderless: false,
+                          foreground: true,
+                        }
                       : undefined
                   }
                   style={({pressed}) => [
@@ -667,8 +671,8 @@ export default function PlaylistsPage({songs, activeId, refreshKey}: Props) {
                     canPlayPlaylist
                       ? {
                           color: 'rgba(255,255,255,0.18)',
-                          borderless: true,
-                          radius: 24,
+                          borderless: false,
+                          foreground: true,
                         }
                       : undefined
                   }
@@ -772,7 +776,7 @@ export default function PlaylistsPage({songs, activeId, refreshKey}: Props) {
           }}
           style={styles.addBtn}
         >
-          <Plus size={20} color={palette.deep} weight="bold" />
+          <Plus size={20} color={palette.inkSoft} weight="bold" />
         </Pressable>
       </View>
 
@@ -822,8 +826,6 @@ const styles = StyleSheet.create({
   addBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: palette.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -937,6 +939,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   shuffleControlBtn: {
     backgroundColor: palette.surfaceAlt,

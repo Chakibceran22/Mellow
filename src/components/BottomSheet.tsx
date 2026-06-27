@@ -35,8 +35,8 @@ type Props = {
 };
 
 /**
- * Global bottom sheet — slides up from the bottom like Spotify, draggable
- * anywhere on the sheet to dismiss.
+ * Global bottom sheet — slides up from the bottom like Spotify, draggable on
+ * the sheet surface while preserving inner button taps.
  *
  * ⚠️ Deliberately NOT a React Native `Modal` (on Android a Modal renders outside
  * the root view, so gesture-handler never sees the drag). It portals to the app
@@ -168,7 +168,7 @@ export default function BottomSheet({
 
   const pan = Gesture.Pan()
     .enabled(dismissable)
-    .activeOffsetY([0, 12]) // only engage on a downward drag
+    .cancelsTouchesInView(false)
     .onChange(e => {
       translateY.value = Math.max(0, translateY.value + e.changeY);
     })
@@ -220,8 +220,6 @@ export default function BottomSheet({
         <Animated.View
           style={[styles.sheet, sheetStyle]}
           onLayout={e => onLayout(e.nativeEvent.layout.height)}>
-          {/* The whole sheet is the drag target — `activeOffsetY([0,12])` means a
-              downward drag dismisses while taps on inner buttons still register. */}
           <GestureDetector gesture={pan}>
             <View style={[styles.sheetSurface, {paddingBottom: insets.bottom + 12}]}>
               <View style={styles.grabArea}>

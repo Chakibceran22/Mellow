@@ -1,7 +1,7 @@
 import {memo} from 'react';
 import {Pressable, StyleSheet, View} from 'react-native';
 import {Text} from 'react-native-paper';
-import {DotsThreeVertical} from 'phosphor-react-native';
+import {DotsThreeVertical, Plus} from 'phosphor-react-native';
 import SongCover from './SongCover';
 import {palette} from '../theme/theme';
 import {formatDuration, type LibrarySong} from '../data/mockSongs';
@@ -11,9 +11,18 @@ type Props = {
   active: boolean;
   onPress: () => void;
   onMorePress: () => void;
+  action?: 'more' | 'addToPlaylist';
 };
 
-function SongRow({song, active, onPress, onMorePress}: Props) {
+function SongRow({
+  song,
+  active,
+  onPress,
+  onMorePress,
+  action = 'more',
+}: Props) {
+  const addingToPlaylist = action === 'addToPlaylist';
+
   return (
     <Pressable
       onPress={onPress}
@@ -45,7 +54,11 @@ function SongRow({song, active, onPress, onMorePress}: Props) {
         </Text>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`More options for ${song.title}`}
+          accessibilityLabel={
+            addingToPlaylist
+              ? `Add ${song.title} to playlist`
+              : `More options for ${song.title}`
+          }
           hitSlop={8}
           onPress={e => {
             e.stopPropagation();
@@ -56,9 +69,16 @@ function SongRow({song, active, onPress, onMorePress}: Props) {
             borderless: true,
             radius: 18,
           }}
-          style={({pressed}) => [styles.moreBtn, pressed && styles.rowPressed]}
+          style={({pressed}) => [
+            styles.moreBtn,
+            pressed && styles.rowPressed,
+          ]}
         >
-          <DotsThreeVertical size={20} color={palette.inkSoft} weight="bold" />
+          {addingToPlaylist ? (
+            <Plus size={20} color={palette.inkSoft} weight="bold" />
+          ) : (
+            <DotsThreeVertical size={20} color={palette.inkSoft} weight="bold" />
+          )}
         </Pressable>
       </View>
     </Pressable>

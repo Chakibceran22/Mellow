@@ -1,5 +1,4 @@
 import {
-  type MutableRefObject,
   useCallback,
   useEffect,
   useMemo,
@@ -29,10 +28,7 @@ import Animated, {
 import {MagnifyingGlass, Play, Shuffle, X} from 'phosphor-react-native';
 import SongRow from '../components/SongRow';
 import PlayerSheet from '../components/PlayerSheet';
-import SongActionsSheet from '../components/SongActionsSheet';
 import AddToPlaylistSheet from '../components/AddToPlaylistSheet';
-import RenameSheet from '../components/RenameSheet';
-import ConfirmSheet from '../components/ConfirmSheet';
 import PlaylistsPage from './PlaylistsPage';
 import {ListSkeleton} from '../components/skeleton';
 import {type LibrarySong} from '../data/mockSongs';
@@ -58,11 +54,7 @@ export default function LibraryScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [allSongs, setAllSongs] = useState<LibrarySong[]>([]);
-  const [menuSong, setMenuSong] = useState<LibrarySong | null>(null);
-  // Sub-sheets opened from the song actions menu — one song each, or null.
   const [addSong, setAddSong] = useState<LibrarySong | null>(null);
-  const [renameSong, setRenameSong] = useState<LibrarySong | null>(null);
-  const [deleteSong, setDeleteSong] = useState<LibrarySong | null>(null);
   const [denied, setDenied] = useState(false);
   const [playlistsVersion, setPlaylistsVersion] = useState(0);
 
@@ -80,9 +72,6 @@ export default function LibraryScreen() {
   const inputRef = useRef<TextInput>(null);
   const pagerRef = useRef<ScrollView>(null);
   const tabBarRef = useRef<ScrollView>(null);
-  const afterMenuDismissRef = useRef<(() => void) | null>(null);
-  const afterRenameDismissRef = useRef<(() => void) | null>(null);
-  const afterDeleteDismissRef = useRef<(() => void) | null>(null);
 
   const active = useCurrentMediaItem();
   const activeId = active?.mediaId ?? null;
@@ -219,92 +208,16 @@ export default function LibraryScreen() {
         song={item}
         active={item.id === activeId}
         onPress={() => playFromList(songs, index)}
-        onMorePress={() => setMenuSong(item)}
+        onMorePress={() => setAddSong(item)}
+        action="addToPlaylist"
       />
     ),
     [songs, activeId],
   );
 
-  const closeSongMenu = useCallback(() => {
-    setMenuSong(null);
-  }, []);
-
   const refreshPlaylists = useCallback(() => {
     setPlaylistsVersion(v => v + 1);
   }, []);
-
-  const onAddSongToPlaylist = useCallback(
-    (song: LibrarySong) => {
-      afterMenuDismissRef.current = () => setAddSong(song);
-    },
-    [],
-  );
-
-  const onRenameSong = useCallback(
-    (song: LibrarySong) => {
-      afterMenuDismissRef.current = () => setRenameSong(song);
-    },
-    [],
-  );
-
-  const onDeleteSong = useCallback(
-    (song: LibrarySong) => {
-      afterMenuDismissRef.current = () => setDeleteSong(song);
-    },
-    [],
-  );
-
-  // Rename / delete act on the in-memory library list for now (the MusicLibrary
-  // native module is read-only — writing back to MediaStore needs native work).
-  // The actual list rebuild is queued until the sheet reports that its exit
-  // animation finished, so the FlatList work never races the slide-out.
-  const applyRename = useCallback(
-    (name: string) => {
-      if (!renameSong) {
-        return;
-      }
-      const id = renameSong.id;
-      afterRenameDismissRef.current = () => {
-        setAllSongs(list =>
-          list.map(s => (s.id === id ? {...s, title: name} : s)),
-        );
-      };
-      setRenameSong(null);
-    },
-    [renameSong],
-  );
-
-  const applyDelete = useCallback(() => {
-    if (!deleteSong) {
-      return;
-    }
-    const id = deleteSong.id;
-    afterDeleteDismissRef.current = () => {
-      setAllSongs(list => list.filter(s => s.id !== id));
-    };
-    setDeleteSong(null);
-  }, [deleteSong]);
-
-  const flushDismissAction = useCallback(
-    (ref: MutableRefObject<(() => void) | null>) => {
-      const action = ref.current;
-      ref.current = null;
-      action?.();
-    },
-    [],
-  );
-
-  const onSongMenuDismiss = useCallback(() => {
-    flushDismissAction(afterMenuDismissRef);
-  }, [flushDismissAction]);
-
-  const onRenameDismiss = useCallback(() => {
-    flushDismissAction(afterRenameDismissRef);
-  }, [flushDismissAction]);
-
-  const onDeleteDismiss = useCallback(() => {
-    flushDismissAction(afterDeleteDismissRef);
-  }, [flushDismissAction]);
 
   const renderSeparator = useCallback(
     () => <View style={styles.songSeparator} />,
@@ -532,44 +445,12 @@ export default function LibraryScreen() {
       </View>
 
       <PlayerSheet />
-      <SongActionsSheet
-        visible={menuSong !== null}
-        song={menuSong}
-        onClose={closeSongMenu}
-        onDismiss={onSongMenuDismiss}
-        onAddToPlaylist={onAddSongToPlaylist}
-        onRename={onRenameSong}
-        onDelete={onDeleteSong}
-      />
       <AddToPlaylistSheet
         visible={addSong !== null}
         song={addSong}
         songs={allSongs}
         onClose={() => setAddSong(null)}
         onChanged={refreshPlaylists}
-      />
-      <RenameSheet
-        visible={renameSong !== null}
-        title="Rename song"
-        placeholder="Song title"
-        initialValue={renameSong?.title ?? ''}
-        onSave={applyRename}
-        onClose={() => setRenameSong(null)}
-        onDismiss={onRenameDismiss}
-      />
-      <ConfirmSheet
-        visible={deleteSong !== null}
-        title="Delete song?"
-        message={
-          deleteSong
-            ? `“${deleteSong.title}” will be removed from your library list.`
-            : undefined
-        }
-        confirmLabel="Delete"
-        destructive
-        onConfirm={applyDelete}
-        onClose={() => setDeleteSong(null)}
-        onDismiss={onDeleteDismiss}
       />
     </View>
   );
