@@ -1,4 +1,5 @@
 import TrackPlayer, {Event, type BackgroundEvent} from '@rntp/player';
+import {dismissPlaybackSession} from './setup';
 
 /**
  * Android headless background handler.
@@ -10,8 +11,8 @@ import TrackPlayer, {Event, type BackgroundEvent} from '@rntp/player';
  * without it, those service-side events have nowhere to go and the player can
  * be torn down (the "controls freeze after dismissing the notification" bug).
  *
- * Transport commands use native handling (see `setCommands`), so this mostly
- * needs to EXIST; we still forward the basic remote events defensively.
+ * Most transport commands use native handling (see `setCommands`). Stop is
+ * routed through JS so dismissing the system session can clear app UI too.
  */
 export async function playbackBackgroundHandler(
   event: BackgroundEvent,
@@ -21,8 +22,10 @@ export async function playbackBackgroundHandler(
       TrackPlayer.play();
       break;
     case Event.RemotePause:
-    case Event.RemoteStop:
       TrackPlayer.pause();
+      break;
+    case Event.RemoteStop:
+      dismissPlaybackSession();
       break;
     case Event.RemoteNext:
       TrackPlayer.skipToNext();

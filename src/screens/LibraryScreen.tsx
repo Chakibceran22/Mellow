@@ -1,4 +1,11 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {
+  type MutableRefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Dimensions,
   FlatList,
@@ -20,7 +27,6 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import {MagnifyingGlass, Play, Shuffle, X} from 'phosphor-react-native';
-import {useActiveMediaItem} from '@rntp/player';
 import SongRow from '../components/SongRow';
 import PlayerSheet from '../components/PlayerSheet';
 import SongActionsSheet from '../components/SongActionsSheet';
@@ -32,6 +38,7 @@ import {ListSkeleton} from '../components/skeleton';
 import {type LibrarySong} from '../data/mockSongs';
 import {fetchLibrarySongs} from '../services/musicLibrary';
 import {playFromList, playShuffled, setupPlayer} from '../player/setup';
+import {useCurrentMediaItem} from '../player/useCurrentMediaItem';
 import {palette} from '../theme/theme';
 
 // Top navigation — each entry is a full, swipeable page. "Songs" and
@@ -41,10 +48,6 @@ const TABS = ['Songs', 'Playlists'] as const;
 // Horizontal inset that pulls the underline in to sit under the tab's text
 // (matches the tab's horizontal padding) instead of spanning the tap target.
 const INDICATOR_INSET = 16;
-
-// A touch longer than BottomSheet's close animation, so heavy list mutations
-// (delete / rename) run AFTER the sheet has slid away — never mid-animation.
-const CLOSE_SETTLE_MS = 260;
 
 type TabLayout = {x: number; width: number};
 
@@ -76,8 +79,11 @@ export default function LibraryScreen() {
   const inputRef = useRef<TextInput>(null);
   const pagerRef = useRef<ScrollView>(null);
   const tabBarRef = useRef<ScrollView>(null);
+  const afterMenuDismissRef = useRef<(() => void) | null>(null);
+  const afterRenameDismissRef = useRef<(() => void) | null>(null);
+  const afterDeleteDismissRef = useRef<(() => void) | null>(null);
 
-  const active = useActiveMediaItem();
+  const active = useCurrentMediaItem();
   const activeId = active?.mediaId ?? null;
 
   // Boot the audio engine once when the screen mounts.
@@ -222,45 +228,43 @@ export default function LibraryScreen() {
     setMenuSong(null);
   }, []);
 
-  // Closing a sheet animates out (~200ms). Wait that out before opening the next
-  // so we never stack two native Modals on Android (only the top would render).
-  const openAfterClose = useCallback((fn: () => void) => {
-    setTimeout(fn, 240);
-  }, []);
-
   const onAddSongToPlaylist = useCallback(
-    (song: LibrarySong) => openAfterClose(() => setAddSong(song)),
-    [openAfterClose],
+    (song: LibrarySong) => {
+      afterMenuDismissRef.current = () => setAddSong(song);
+    },
+    [],
   );
 
   const onRenameSong = useCallback(
-    (song: LibrarySong) => openAfterClose(() => setRenameSong(song)),
-    [openAfterClose],
+    (song: LibrarySong) => {
+      afterMenuDismissRef.current = () => setRenameSong(song);
+    },
+    [],
   );
 
   const onDeleteSong = useCallback(
-    (song: LibrarySong) => openAfterClose(() => setDeleteSong(song)),
-    [openAfterClose],
+    (song: LibrarySong) => {
+      afterMenuDismissRef.current = () => setDeleteSong(song);
+    },
+    [],
   );
 
   // Rename / delete act on the in-memory library list for now (the MusicLibrary
   // native module is read-only — writing back to MediaStore needs native work).
-  //
-  // Close the sheet FIRST, then mutate the (potentially long) list AFTER its exit
-  // animation — rebuilding the FlatList is heavy and, run synchronously, it
-  // stalls the sheet's slide-out on the JS thread (the "lag on the last stretch").
+  // The actual list rebuild is queued until the sheet reports that its exit
+  // animation finished, so the FlatList work never races the slide-out.
   const applyRename = useCallback(
     (name: string) => {
       if (!renameSong) {
         return;
       }
       const id = renameSong.id;
-      setRenameSong(null);
-      setTimeout(() => {
+      afterRenameDismissRef.current = () => {
         setAllSongs(list =>
           list.map(s => (s.id === id ? {...s, title: name} : s)),
         );
-      }, CLOSE_SETTLE_MS);
+      };
+      setRenameSong(null);
     },
     [renameSong],
   );
@@ -270,11 +274,32 @@ export default function LibraryScreen() {
       return;
     }
     const id = deleteSong.id;
-    setDeleteSong(null);
-    setTimeout(() => {
+    afterDeleteDismissRef.current = () => {
       setAllSongs(list => list.filter(s => s.id !== id));
-    }, CLOSE_SETTLE_MS);
+    };
+    setDeleteSong(null);
   }, [deleteSong]);
+
+  const flushDismissAction = useCallback(
+    (ref: MutableRefObject<(() => void) | null>) => {
+      const action = ref.current;
+      ref.current = null;
+      action?.();
+    },
+    [],
+  );
+
+  const onSongMenuDismiss = useCallback(() => {
+    flushDismissAction(afterMenuDismissRef);
+  }, [flushDismissAction]);
+
+  const onRenameDismiss = useCallback(() => {
+    flushDismissAction(afterRenameDismissRef);
+  }, [flushDismissAction]);
+
+  const onDeleteDismiss = useCallback(() => {
+    flushDismissAction(afterDeleteDismissRef);
+  }, [flushDismissAction]);
 
   const renderSeparator = useCallback(
     () => <View style={styles.songSeparator} />,
@@ -500,6 +525,7 @@ export default function LibraryScreen() {
         visible={menuSong !== null}
         song={menuSong}
         onClose={closeSongMenu}
+        onDismiss={onSongMenuDismiss}
         onAddToPlaylist={onAddSongToPlaylist}
         onRename={onRenameSong}
         onDelete={onDeleteSong}
@@ -516,6 +542,7 @@ export default function LibraryScreen() {
         initialValue={renameSong?.title ?? ''}
         onSave={applyRename}
         onClose={() => setRenameSong(null)}
+        onDismiss={onRenameDismiss}
       />
       <ConfirmSheet
         visible={deleteSong !== null}
@@ -529,6 +556,7 @@ export default function LibraryScreen() {
         destructive
         onConfirm={applyDelete}
         onClose={() => setDeleteSong(null)}
+        onDismiss={onDeleteDismiss}
       />
     </View>
   );

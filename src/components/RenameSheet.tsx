@@ -13,6 +13,7 @@ type Props = {
   saveLabel?: string;
   onSave: (value: string) => void;
   onClose: () => void;
+  onDismiss?: () => void;
 };
 
 /**
@@ -28,6 +29,7 @@ export default function RenameSheet({
   saveLabel = 'Save',
   onSave,
   onClose,
+  onDismiss,
 }: Props) {
   const [value, setValue] = useState(initialValue);
   const inputRef = useRef<TextInput>(null);
@@ -51,7 +53,7 @@ export default function RenameSheet({
   };
 
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    <BottomSheet visible={visible} onClose={onClose} onDismiss={onDismiss}>
       <View style={styles.body}>
         <Text variant="titleMedium" style={styles.title}>
           {title}

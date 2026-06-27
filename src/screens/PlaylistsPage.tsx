@@ -182,7 +182,7 @@ export default function PlaylistsPage() {
             borderless: true,
             radius: 22,
           }}
-          style={({pressed}) => [styles.addBtn, pressed && styles.rowPressed]}
+          
         >
           <Plus size={20} color={palette.deep} weight="bold" />
         </Pressable>
@@ -271,10 +271,6 @@ const styles = StyleSheet.create({
   iconBtn: {
     width: 34,
     height: 34,
-    borderRadius: 17,
-    backgroundColor: palette.surfaceAlt,
-    borderWidth: 1,
-    borderColor: palette.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },

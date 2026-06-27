@@ -14,14 +14,13 @@ import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import {Slider} from 'react-native-awesome-slider';
 import {CaretDown, Pause, Play, SkipBack, SkipForward} from 'phosphor-react-native';
 import TrackPlayer, {
-  useActiveMediaItem,
   useIsPlaying,
   useProgress,
 } from '@rntp/player';
 import SongCover from './SongCover';
 import GreenGlassBackground from './GreenGlassBackground';
-import {resumePlayback} from '../player/setup';
 import {formatDuration} from '../data/mockSongs';
+import {useCurrentMediaItem} from '../player/useCurrentMediaItem';
 import {palette} from '../theme/theme';
 
 const MINI_H = 62;
@@ -36,7 +35,7 @@ const WHITE_SOFT = 'rgba(255,255,255,0.72)';
 const WHITE_FAINT = 'rgba(255,255,255,0.28)';
 
 export default function PlayerSheet() {
-  const active = useActiveMediaItem();
+  const active = useCurrentMediaItem();
   const activeId = active?.mediaId ?? null;
   // `useIsPlaying` only re-reads native state on event / AppState change. But
   // swiping away the media notification stops Media3's service WITHOUT either —
@@ -136,15 +135,18 @@ export default function PlayerSheet() {
   const openSheet = () => {
     expand.value = withSpring(1, SPRING);
   };
-  // Re-read the REAL native state on press (our `playing` may be a beat stale),
-  // and resume via the resilient path so a torn-down session is rebuilt instead
-  // of leaving the button doing nothing.
+  // Re-read the REAL native state on press (our `playing` may be a beat stale).
+  // If the notification was dismissed and the queue is gone, do not resurrect it.
   const togglePlay = () => {
     if (TrackPlayer.isPlaying()) {
       TrackPlayer.pause();
       setPlaying(false);
     } else {
-      resumePlayback();
+      if (TrackPlayer.getQueue().length === 0) {
+        setPlaying(false);
+        return;
+      }
+      TrackPlayer.play();
       setPlaying(true);
     }
   };

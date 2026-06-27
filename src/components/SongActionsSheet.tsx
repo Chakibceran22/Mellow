@@ -13,6 +13,7 @@ type Props = {
   onAddToPlaylist: (song: LibrarySong) => void;
   onRename: (song: LibrarySong) => void;
   onDelete: (song: LibrarySong) => void;
+  onDismiss?: () => void;
 };
 
 type ActionRowProps = {
@@ -52,6 +53,7 @@ export default function SongActionsSheet({
   onAddToPlaylist,
   onRename,
   onDelete,
+  onDismiss,
 }: Props) {
   const run = (action: (song: LibrarySong) => void) => {
     if (!song) {
@@ -62,7 +64,7 @@ export default function SongActionsSheet({
   };
 
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    <BottomSheet visible={visible} onClose={onClose} onDismiss={onDismiss}>
       <View style={styles.actions}>
         <ActionRow
           label="Add to playlist"

@@ -14,6 +14,7 @@ type Props = {
   destructive?: boolean;
   onConfirm: () => void;
   onClose: () => void;
+  onDismiss?: () => void;
 };
 
 /**
@@ -30,6 +31,7 @@ export default function ConfirmSheet({
   destructive,
   onConfirm,
   onClose,
+  onDismiss,
 }: Props) {
   // Retain the text through the slide-out — the caller usually derives title /
   // message from the item being acted on and clears it the moment it closes.
@@ -41,7 +43,7 @@ export default function ConfirmSheet({
   }, [visible, title, message]);
 
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    <BottomSheet visible={visible} onClose={onClose} onDismiss={onDismiss}>
       <View style={styles.body}>
         <Text variant="titleMedium" style={styles.title}>
           {shown.title}

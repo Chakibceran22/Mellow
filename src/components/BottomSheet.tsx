@@ -26,6 +26,8 @@ const EASE_IN = Easing.in(Easing.cubic);
 type Props = {
   visible: boolean;
   onClose: () => void;
+  /** Fires after the close animation finishes and the sheet is unmounted. */
+  onDismiss?: () => void;
   children: ReactNode;
   /** Drag-to-dismiss + tap-outside (default true). Turn off for blocking sheets. */
   dismissable?: boolean;
@@ -49,6 +51,7 @@ type Props = {
 export default function BottomSheet({
   visible,
   onClose,
+  onDismiss,
   children,
   dismissable = true,
 }: Props) {
@@ -74,7 +77,8 @@ export default function BottomSheet({
     if (visibleRef.current) {
       onClose();
     }
-  }, [appeared, closing, onClose]);
+    onDismiss?.();
+  }, [appeared, closing, onClose, onDismiss]);
 
   // Start the exit on the UI thread. Callable from JS (backdrop/back) — writing
   // the shared value kicks the animation immediately, no re-render needed.

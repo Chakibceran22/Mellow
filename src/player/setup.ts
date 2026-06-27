@@ -1,4 +1,4 @@
-import TrackPlayer, {PlayerCommand, type MediaItem} from '@rntp/player';
+import TrackPlayer, {Event, PlayerCommand, type MediaItem} from '@rntp/player';
 
 /**
  * App-level song shape. Later this is what the MusicLibrary TurboModule returns
@@ -54,9 +54,19 @@ export function setupPlayer() {
         PlayerCommand.Seek,
         PlayerCommand.Stop,
       ],
+      handling: 'hybrid',
+      perCommandHandling: {
+        [PlayerCommand.Stop]: 'js',
+      },
     });
   } catch (e) {
     console.warn('[player] setCommands', e);
+  }
+
+  try {
+    TrackPlayer.addEventListener(Event.RemoteStop, dismissPlaybackSession);
+  } catch (e) {
+    console.warn('[player] remote stop listener', e);
   }
 
   isSetup = true;
@@ -70,15 +80,7 @@ const toMediaItem = (s: Song): MediaItem => ({
   artworkUrl: s.artwork,
 });
 
-// Snapshot of the last queue we set, so we can rebuild it if Android tears the
-// native player down (see `resumePlayback`). Kept in JS memory — survives a
-// notification dismiss while the app is open, which is the case that bites us.
-let lastQueue: MediaItem[] = [];
-let lastIndex = 0;
-
 function setQueueAndPlay(items: MediaItem[], index: number) {
-  lastQueue = items;
-  lastIndex = index;
   TrackPlayer.setMediaItems(items, index);
   TrackPlayer.play();
 }
@@ -116,31 +118,20 @@ export function playShuffled(songs: Song[]) {
 }
 
 /**
- * Resilient resume. Swiping away the Android media notification stops Media3's
- * service and can leave the native queue empty, which freezes the in-app
- * controls (RNTP issue #1226). If the queue is gone but we still remember the
- * last one, rebuild it before playing — so "play" always brings the music back.
- * When the queue is intact this is just `play()` and resumes at the exact spot.
+ * User dismissed the system playback session (notification / lock-screen stop).
+ * Clear the queue too, so app UI treats that as "nothing is loaded" instead of
+ * keeping a stale mini player around.
  */
-export function resumePlayback() {
-  let queue: MediaItem[] = [];
+export function dismissPlaybackSession() {
   try {
-    queue = TrackPlayer.getQueue();
+    TrackPlayer.pause();
   } catch (e) {
-    console.warn('[player] getQueue', e);
-  }
-
-  if (queue.length === 0 && lastQueue.length > 0) {
-    try {
-      TrackPlayer.setMediaItems(lastQueue, lastIndex);
-    } catch (e) {
-      console.warn('[player] revive queue', e);
-    }
+    console.warn('[player] pause before dismiss', e);
   }
 
   try {
-    TrackPlayer.play();
+    TrackPlayer.clear();
   } catch (e) {
-    console.warn('[player] play', e);
+    console.warn('[player] clear dismissed session', e);
   }
 }
