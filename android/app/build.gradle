@@ -92,15 +92,25 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            // Populated in CI (or local gradle.properties) when a real upload
+            // keystore is available. See .github/workflows/android-release.yml.
+            if (project.hasProperty('MELLOW_UPLOAD_STORE_FILE')) {
+                storeFile file(MELLOW_UPLOAD_STORE_FILE)
+                storePassword MELLOW_UPLOAD_STORE_PASSWORD
+                keyAlias MELLOW_UPLOAD_KEY_ALIAS
+                keyPassword MELLOW_UPLOAD_KEY_PASSWORD
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // Uses the real upload keystore when MELLOW_UPLOAD_* props are set,
+            // otherwise falls back to the debug keystore so the build still works.
+            signingConfig project.hasProperty('MELLOW_UPLOAD_STORE_FILE') ? signingConfigs.release : signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
