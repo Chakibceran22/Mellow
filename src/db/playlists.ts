@@ -15,6 +15,8 @@ export type Playlist = {
   createdAt: number;
   songCount: number;
   coverSongId: string | null;
+  /** A user-picked cover image (base64 `data:` URI). Takes priority over the song cover. */
+  coverImageUri: string | null;
 };
 
 const DB_NAME = 'mellow.db';
@@ -52,11 +54,14 @@ async function migrate(): Promise<void> {
      );`,
   );
   const columns = await d.execute('PRAGMA table_info(playlists);');
-  const hasCoverSong = (columns.rows ?? []).some(
-    r => String(r.name) === 'cover_song_id',
-  );
-  if (!hasCoverSong) {
+  const names = new Set((columns.rows ?? []).map(r => String(r.name)));
+  if (!names.has('cover_song_id')) {
     await d.execute('ALTER TABLE playlists ADD COLUMN cover_song_id TEXT;');
+  }
+  // A user-uploaded cover image, stored as a base64 `data:` URI so it survives
+  // cache-clearing without needing the filesystem.
+  if (!names.has('cover_image_uri')) {
+    await d.execute('ALTER TABLE playlists ADD COLUMN cover_image_uri TEXT;');
   }
 }
 
@@ -67,7 +72,7 @@ function ready(): Promise<void> {
   return readyPromise;
 }
 
-/** All playlists, newest first, each with its current song count. */
+/** All playlists, A→Z by name (case-insensitive), each with its song count. */
 export async function getPlaylists(): Promise<Playlist[]> {
   await ready();
   const res = await getDb().execute(
@@ -84,11 +89,12 @@ export async function getPlaylists(): Promise<Playlist[]> {
                  LIMIT 1
               )
             ) AS coverSongId,
+            p.cover_image_uri AS coverImageUri,
             COUNT(ps.song_id) AS songCount
        FROM playlists p
        LEFT JOIN playlist_songs ps ON ps.playlist_id = p.id
       GROUP BY p.id
-      ORDER BY p.created_at DESC;`,
+      ORDER BY p.name COLLATE NOCASE ASC;`,
   );
 
   return (res.rows ?? []).map(r => ({
@@ -97,6 +103,7 @@ export async function getPlaylists(): Promise<Playlist[]> {
     createdAt: Number(r.createdAt),
     songCount: Number(r.songCount),
     coverSongId: r.coverSongId == null ? null : String(r.coverSongId),
+    coverImageUri: r.coverImageUri == null ? null : String(r.coverImageUri),
   }));
 }
 
@@ -141,6 +148,30 @@ export async function addSongToPlaylist(
   );
 }
 
+/**
+ * Add several songs to a playlist in one transaction. Idempotent per song, and
+ * the staggered `added_at` (now + i) preserves the selection order so the rows
+ * land in the playlist in the order they were picked.
+ */
+export async function addSongsToPlaylist(
+  playlistId: number,
+  songIds: string[],
+): Promise<void> {
+  if (songIds.length === 0) {
+    return;
+  }
+  await ready();
+  const now = Date.now();
+  const commands = songIds.map(
+    (songId, i): [string, (number | string)[]] => [
+      `INSERT OR IGNORE INTO playlist_songs (playlist_id, song_id, added_at)
+       VALUES (?, ?, ?);`,
+      [playlistId, songId, now + i],
+    ],
+  );
+  await getDb().executeBatch(commands);
+}
+
 /** Remove a song from a playlist. */
 export async function removeSongFromPlaylist(
   playlistId: number,
@@ -159,7 +190,11 @@ export async function removeSongFromPlaylist(
   );
 }
 
-/** Use an existing song in the playlist as the playlist cover source. */
+/**
+ * Use an existing song in the playlist as the playlist cover source. Clears any
+ * user-uploaded image so the chosen song art actually shows (the image would
+ * otherwise win the priority order).
+ */
 export async function setPlaylistCoverSong(
   playlistId: number,
   songId: string,
@@ -167,13 +202,36 @@ export async function setPlaylistCoverSong(
   await ready();
   await getDb().execute(
     `UPDATE playlists
-        SET cover_song_id = ?
+        SET cover_song_id = ?, cover_image_uri = NULL
       WHERE id = ?
         AND EXISTS (
           SELECT 1 FROM playlist_songs
            WHERE playlist_id = ? AND song_id = ?
         );`,
     [songId, playlistId, playlistId, songId],
+  );
+}
+
+/** Set a user-uploaded cover image (a base64 `data:` URI) for the playlist. */
+export async function setPlaylistCoverImage(
+  playlistId: number,
+  dataUri: string,
+): Promise<void> {
+  await ready();
+  await getDb().execute(
+    'UPDATE playlists SET cover_image_uri = ? WHERE id = ?;',
+    [dataUri, playlistId],
+  );
+}
+
+/** Drop the user-uploaded cover image, reverting to the song-based cover. */
+export async function clearPlaylistCoverImage(
+  playlistId: number,
+): Promise<void> {
+  await ready();
+  await getDb().execute(
+    'UPDATE playlists SET cover_image_uri = NULL WHERE id = ?;',
+    [playlistId],
   );
 }
 

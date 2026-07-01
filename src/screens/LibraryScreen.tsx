@@ -6,6 +6,7 @@ import {
   useState,
 } from 'react';
 import {
+  BackHandler,
   Dimensions,
   FlatList,
   LayoutChangeEvent,
@@ -25,10 +26,11 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import {MagnifyingGlass, Play, Shuffle, X} from 'phosphor-react-native';
+import {ListPlus, MagnifyingGlass, Play, Shuffle, X} from 'phosphor-react-native';
 import SongRow from '../components/SongRow';
 import PlayerSheet from '../components/PlayerSheet';
 import AddToPlaylistSheet from '../components/AddToPlaylistSheet';
+import AddSongsToPlaylistSheet from '../components/AddSongsToPlaylistSheet';
 import PlaylistsPage from './PlaylistsPage';
 import {ListSkeleton} from '../components/skeleton';
 import {type LibrarySong} from '../data/mockSongs';
@@ -57,6 +59,12 @@ export default function LibraryScreen() {
   const [addSong, setAddSong] = useState<LibrarySong | null>(null);
   const [denied, setDenied] = useState(false);
   const [playlistsVersion, setPlaylistsVersion] = useState(0);
+
+  // Batch selection (long-press a Songs row to enter): pick several songs, then
+  // push them all into a playlist at once.
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchAddVisible, setBatchAddVisible] = useState(false);
 
   // Measured page size — pages and the underline math are driven off this so it
   // stays correct across rotation / different screens.
@@ -202,22 +210,84 @@ export default function LibraryScreen() {
     [size.width, activeIndex, ensureTabVisible],
   );
 
+  const enterSelection = useCallback((id: string) => {
+    setSelectionMode(true);
+    setSelectedIds(new Set([id]));
+  }, []);
+
+  const exitSelection = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      // Last one deselected → drop out of selection mode entirely.
+      if (next.size === 0) {
+        setSelectionMode(false);
+      }
+      return next;
+    });
+  }, []);
+
+  const allSelected = songs.length > 0 && selectedIds.size === songs.length;
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds(prev =>
+      prev.size === songs.length ? new Set() : new Set(songs.map(s => s.id)),
+    );
+  }, [songs]);
+
+  // Android hardware back leaves selection mode before anything else. (Skipped
+  // while the batch sheet is open so its own back handler can close it first.)
+  useEffect(() => {
+    if (!selectionMode || batchAddVisible) {
+      return;
+    }
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      exitSelection();
+      return true;
+    });
+    return () => sub.remove();
+  }, [selectionMode, batchAddVisible, exitSelection]);
+
   const renderItem = useCallback(
     ({item, index}: {item: LibrarySong; index: number}) => (
       <SongRow
         song={item}
         active={item.id === activeId}
-        onPress={() => playFromList(songs, index)}
+        selectionMode={selectionMode}
+        selected={selectedIds.has(item.id)}
+        onPress={() =>
+          selectionMode
+            ? toggleSelect(item.id)
+            : playFromList(songs, index)
+        }
+        onLongPress={() =>
+          selectionMode ? toggleSelect(item.id) : enterSelection(item.id)
+        }
         onMorePress={() => setAddSong(item)}
         action="addToPlaylist"
       />
     ),
-    [songs, activeId],
+    [songs, activeId, selectionMode, selectedIds, toggleSelect, enterSelection],
   );
 
   const refreshPlaylists = useCallback(() => {
     setPlaylistsVersion(v => v + 1);
   }, []);
+
+  // Selection done → refresh playlist counts, close the sheet, drop selection.
+  const onBatchAdded = useCallback(() => {
+    refreshPlaylists();
+    setBatchAddVisible(false);
+    exitSelection();
+  }, [refreshPlaylists, exitSelection]);
 
   const renderSeparator = useCallback(
     () => <View style={styles.songSeparator} />,
@@ -421,6 +491,52 @@ export default function LibraryScreen() {
             <X size={18} color={palette.inkSoft} weight="bold" />
           </Pressable>
         </Animated.View>
+
+        {/* Selection bar — covers the tabs while picking songs in batch mode */}
+        {selectionMode ? (
+          <View style={styles.selectionBar}>
+            <Pressable
+              onPress={exitSelection}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel selection"
+              style={styles.selCancel}
+            >
+              <X size={22} color={palette.ink} weight="bold" />
+            </Pressable>
+            <Text variant="titleMedium" style={styles.selCount}>
+              {selectedIds.size} selected
+            </Text>
+            <Pressable onPress={toggleSelectAll} hitSlop={10}>
+              <Text variant="labelLarge" style={styles.selAll}>
+                {allSelected ? 'Clear' : 'Select all'}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setBatchAddVisible(true)}
+              disabled={selectedIds.size === 0}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Add selected songs to playlist"
+              android_ripple={{
+                color: palette.hairline,
+                borderless: true,
+                radius: 22,
+              }}
+              style={({pressed}) => [
+                styles.selAddBtn,
+                selectedIds.size === 0 && styles.selAddBtnDisabled,
+                pressed && styles.actionPressed,
+              ]}
+            >
+              <ListPlus
+                size={26}
+                color={palette.deep}
+                weight="bold"
+              />
+            </Pressable>
+          </View>
+        ) : null}
       </View>
 
       {/* Swipeable category pages */}
@@ -430,6 +546,7 @@ export default function LibraryScreen() {
           horizontal
           pagingEnabled
           directionalLockEnabled
+          scrollEnabled={!selectionMode}
           showsHorizontalScrollIndicator={false}
           scrollEventThrottle={16}
           onScroll={onPagerScroll}
@@ -451,6 +568,13 @@ export default function LibraryScreen() {
         songs={allSongs}
         onClose={() => setAddSong(null)}
         onChanged={refreshPlaylists}
+      />
+      <AddSongsToPlaylistSheet
+        visible={batchAddVisible}
+        songIds={Array.from(selectedIds)}
+        songs={allSongs}
+        onClose={() => setBatchAddVisible(false)}
+        onAdded={onBatchAdded}
       />
     </View>
   );
@@ -499,6 +623,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   searchInput: {flex: 1, paddingVertical: 0, color: palette.ink, fontSize: 15},
+
+  // Batch-selection bar — covers the tabs while picking songs
+  selectionBar: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    top: HEADER_PAD_TOP,
+    height: ROW_H,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: palette.mint,
+  },
+  selCancel: {paddingVertical: 4},
+  selCount: {flex: 1, color: palette.ink, fontWeight: '700'},
+  selAll: {color: palette.deep, fontWeight: '700'},
+  // Primary action: a bare strong-green icon sitting in the header.
+  selAddBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selAddBtnDisabled: {opacity: 0.35},
 
   // Play all / Shuffle
   actionsRow: {

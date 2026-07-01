@@ -8,15 +8,13 @@ import {
   View,
 } from 'react-native';
 import {Text} from 'react-native-paper';
-import {Check, Playlist as PlaylistIcon, Plus} from 'phosphor-react-native';
+import {CaretRight, Playlist as PlaylistIcon, Plus} from 'phosphor-react-native';
 import BottomSheet from './BottomSheet';
 import SongCover from './SongCover';
 import {
-  addSongToPlaylist,
+  addSongsToPlaylist,
   createPlaylist,
-  getPlaylistIdsForSong,
   getPlaylists,
-  removeSongFromPlaylist,
   type Playlist,
 } from '../db/playlists';
 import {type LibrarySong} from '../data/mockSongs';
@@ -25,133 +23,87 @@ import {palette} from '../theme/theme';
 
 type Props = {
   visible: boolean;
-  song: LibrarySong | null;
+  /** MediaStore ids of the songs to drop into the chosen playlist. */
+  songIds: string[];
+  /** Full library — used only to resolve playlist cover art. */
   songs: LibrarySong[];
   onClose: () => void;
-  /** Called after any add/remove so the caller can refresh playlist counts. */
-  onChanged?: () => void;
+  /** Called after the songs are added (new or existing playlist). */
+  onAdded?: () => void;
 };
 
 /**
- * "Add to playlist" sheet. Shows every playlist with a check toggle for the
- * current song (tap to add / remove, persisted to op-sqlite). The top row flips
- * the body into an inline "new playlist" input — no nested modal — and drops the
- * song into the freshly-created list.
+ * Batch "add to playlist" sheet. Unlike the single-song sheet this doesn't
+ * toggle membership per playlist — tapping a playlist drops the whole selection
+ * into it (idempotent) and closes. The top row creates a new playlist inline and
+ * seeds it with the selection.
  */
-export default function AddToPlaylistSheet({
+export default function AddSongsToPlaylistSheet({
   visible,
-  song,
+  songIds,
   songs,
   onClose,
-  onChanged,
+  onAdded,
 }: Props) {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const [busy, setBusy] = useState(false);
   const inputRef = useRef<TextInput>(null);
+
   const songsById = useMemo(() => {
     const map = new Map<string, LibrarySong>();
     songs.forEach(s => map.set(s.id, s));
-    if (song) {
-      map.set(song.id, song);
-    }
     return map;
-  }, [song, songs]);
+  }, [songs]);
+
+  // Hold the count steady while the sheet slides out (the parent may clear the
+  // selection the instant it closes).
+  const [shownCount, setShownCount] = useState(songIds.length);
+  useEffect(() => {
+    if (songIds.length > 0) {
+      setShownCount(songIds.length);
+    }
+  }, [songIds.length]);
 
   const load = useCallback(async () => {
-    if (!song) {
-      return;
-    }
     setLoading(true);
     try {
-      const [lists, ids] = await Promise.all([
-        getPlaylists(),
-        getPlaylistIdsForSong(song.id),
-      ]);
-      setPlaylists(lists);
-      setSelected(new Set(ids));
+      setPlaylists(await getPlaylists());
     } catch (e) {
-      console.warn('[addToPlaylist] load failed', e);
+      console.warn('[addSongs] load failed', e);
     } finally {
       setLoading(false);
     }
-  }, [song]);
+  }, []);
 
   // Refresh contents (and reset the create form) each time it opens.
   useEffect(() => {
     if (visible) {
       setCreating(false);
       setNewName('');
+      setBusy(false);
       load();
     }
   }, [visible, load]);
 
-  // Keep the song title in the header while the sheet slides out (the parent
-  // clears `song` the instant it closes).
-  const [shownTitle, setShownTitle] = useState(song?.title ?? '');
-  useEffect(() => {
-    if (song) {
-      setShownTitle(song.title);
-    }
-  }, [song]);
-
-  const toggle = useCallback(
+  const addToExisting = useCallback(
     async (playlist: Playlist) => {
-      if (!song) {
+      if (busy || songIds.length === 0) {
         return;
       }
-      const wasIn = selected.has(playlist.id);
-      // Optimistic flip — revert if the write fails.
-      setSelected(prev => {
-        const next = new Set(prev);
-        if (wasIn) {
-          next.delete(playlist.id);
-        } else {
-          next.add(playlist.id);
-        }
-        return next;
-      });
+      setBusy(true);
       try {
-        if (wasIn) {
-          await removeSongFromPlaylist(playlist.id, song.id);
-        } else {
-          await addSongToPlaylist(playlist.id, song.id);
-        }
-        setPlaylists(prev =>
-          prev.map(item =>
-            item.id === playlist.id
-              ? {
-                  ...item,
-                  coverSongId:
-                    wasIn && item.coverSongId === song.id
-                      ? null
-                      : !wasIn && item.coverSongId == null
-                      ? song.id
-                      : item.coverSongId,
-                  songCount: wasIn
-                    ? Math.max(0, item.songCount - 1)
-                    : item.songCount + 1,
-                }
-              : item,
-          ),
-        );
-        onChanged?.();
+        await addSongsToPlaylist(playlist.id, songIds);
+        onAdded?.();
+        onClose();
       } catch (e) {
-        console.warn('[addToPlaylist] toggle failed', e);
-        setSelected(prev => {
-          const next = new Set(prev);
-          if (wasIn) {
-            next.add(playlist.id);
-          } else {
-            next.delete(playlist.id);
-          }
-          return next;
-        });
+        console.warn('[addSongs] add failed', e);
+        setBusy(false);
       }
     },
-    [song, selected, onChanged],
+    [busy, songIds, onAdded, onClose],
   );
 
   const startCreate = useCallback(() => {
@@ -162,29 +114,28 @@ export default function AddToPlaylistSheet({
 
   const submitCreate = useCallback(async () => {
     const name = newName.trim();
-    if (!name || !song) {
+    if (!name || busy || songIds.length === 0) {
       return;
     }
+    setBusy(true);
     try {
       const id = await createPlaylist(name);
-      await addSongToPlaylist(id, song.id);
-      onChanged?.();
-      setCreating(false);
-      setNewName('');
-      await load();
+      await addSongsToPlaylist(id, songIds);
+      onAdded?.();
+      onClose();
     } catch (e) {
-      console.warn('[addToPlaylist] create failed', e);
+      console.warn('[addSongs] create failed', e);
+      setBusy(false);
     }
-  }, [newName, song, load, onChanged]);
+  }, [newName, busy, songIds, onAdded, onClose]);
 
   const renderItem = useCallback(
     ({item}: {item: Playlist}) => {
-      const isIn = selected.has(item.id);
       const coverUri = playlistCoverUri(item, songsById);
       return (
         <View style={styles.rowClip}>
           <Pressable
-            onPress={() => toggle(item)}
+            onPress={() => addToExisting(item)}
             android_ripple={{
               color: palette.hairline,
               borderless: false,
@@ -206,25 +157,23 @@ export default function AddToPlaylistSheet({
                 {item.songCount} {item.songCount === 1 ? 'song' : 'songs'}
               </Text>
             </View>
-            <View style={[styles.check, isIn && styles.checkOn]}>
-              {isIn ? <Check size={15} color="#FFFFFF" weight="bold" /> : null}
-            </View>
+            <CaretRight size={18} color={palette.inkSoft} weight="bold" />
           </Pressable>
         </View>
       );
     },
-    [selected, songsById, toggle],
+    [songsById, addToExisting],
   );
 
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    <BottomSheet visible={visible} onClose={onClose} dismissable={!busy}>
       <View style={styles.header}>
         <View style={styles.headerText}>
           <Text variant="titleMedium" style={styles.title}>
             Add to playlist
           </Text>
           <Text variant="bodySmall" numberOfLines={1} style={styles.headerSub}>
-            {shownTitle}
+            {shownCount} {shownCount === 1 ? 'song' : 'songs'} selected
           </Text>
         </View>
       </View>
@@ -249,7 +198,7 @@ export default function AddToPlaylistSheet({
           <View style={styles.createBtnClip}>
             <Pressable
               onPress={submitCreate}
-              disabled={!newName.trim()}
+              disabled={!newName.trim() || busy}
               android_ripple={
                 newName.trim()
                   ? {
@@ -261,7 +210,7 @@ export default function AddToPlaylistSheet({
               }
               style={({pressed}) => [
                 styles.createBtn,
-                !newName.trim() && styles.createBtnDisabled,
+                (!newName.trim() || busy) && styles.createBtnDisabled,
                 pressed && styles.pressed,
               ]}>
               <Text style={styles.createBtnLabel}>Create</Text>
@@ -328,14 +277,6 @@ const styles = StyleSheet.create({
   headerText: {flex: 1, minWidth: 0},
   title: {color: palette.ink, fontWeight: '700'},
   headerSub: {color: palette.inkSoft, marginTop: 2},
-  closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: palette.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 
   divider: {
     height: 1,
@@ -347,7 +288,6 @@ const styles = StyleSheet.create({
   list: {maxHeight: 360},
   loader: {paddingVertical: 28},
 
-  // Plain list rows on the white sheet.
   rowClip: {
     borderRadius: 14,
     overflow: 'hidden',
@@ -375,16 +315,6 @@ const styles = StyleSheet.create({
   name: {color: palette.ink, fontWeight: '600'},
   newLabel: {flex: 1},
   sub: {color: palette.inkSoft, marginTop: 2},
-  check: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: palette.sage,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkOn: {backgroundColor: palette.deep, borderColor: palette.deep},
 
   createRow: {
     flexDirection: 'row',

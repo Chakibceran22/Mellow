@@ -17,6 +17,7 @@ import {Text} from 'react-native-paper';
 import {
   CaretLeft,
   DotsThreeVertical,
+  Image as ImageIcon,
   PencilSimple,
   Play,
   Playlist as PlaylistIcon,
@@ -33,16 +34,20 @@ import SongCover from '../components/SongCover';
 import SongRow from '../components/SongRow';
 import {ListSkeleton} from '../components/skeleton';
 import {
+  clearPlaylistCoverImage,
   createPlaylist,
   deletePlaylist,
   getPlaylistSongIds,
   getPlaylists,
   renamePlaylist,
   removeSongFromPlaylist,
+  setPlaylistCoverImage,
   setPlaylistCoverSong,
   type Playlist,
 } from '../db/playlists';
 import {type LibrarySong} from '../data/mockSongs';
+import {playlistCoverUri} from '../data/playlistCover';
+import {pickImageAsDataUri} from '../services/imagePicker';
 import {playFromList, playShuffled} from '../player/setup';
 import {palette} from '../theme/theme';
 
@@ -73,6 +78,8 @@ type PlaylistActionSheetProps = {
   onClose: () => void;
   onDismiss: () => void;
   onRename: (playlist: Playlist) => void;
+  onChangeCover: (playlist: Playlist) => void;
+  onRemoveCover: (playlist: Playlist) => void;
   onDelete: (playlist: Playlist) => void;
 };
 
@@ -192,6 +199,8 @@ function PlaylistActionsSheet({
   onClose,
   onDismiss,
   onRename,
+  onChangeCover,
+  onRemoveCover,
   onDelete,
 }: PlaylistActionSheetProps) {
   const [shownPlaylist, setShownPlaylist] = useState(playlist);
@@ -203,6 +212,7 @@ function PlaylistActionsSheet({
   }, [playlist]);
 
   const currentPlaylist = playlist ?? shownPlaylist;
+  const hasCoverImage = Boolean(currentPlaylist?.coverImageUri);
 
   return (
     <BottomSheet visible={visible} onClose={onClose} onDismiss={onDismiss}>
@@ -222,6 +232,20 @@ function PlaylistActionsSheet({
       >
         <PencilSimple size={22} color={palette.deep} weight="bold" />
       </SheetActionRow>
+      <SheetActionRow
+        label={hasCoverImage ? 'Change cover image' : 'Choose cover image'}
+        onPress={() => currentPlaylist && onChangeCover(currentPlaylist)}
+      >
+        <ImageIcon size={22} color={palette.deep} weight="bold" />
+      </SheetActionRow>
+      {hasCoverImage ? (
+        <SheetActionRow
+          label="Remove cover image"
+          onPress={() => currentPlaylist && onRemoveCover(currentPlaylist)}
+        >
+          <Trash size={22} color={palette.deep} weight="bold" />
+        </SheetActionRow>
+      ) : null}
       <SheetActionRow
         label="Delete playlist"
         destructive
@@ -258,7 +282,11 @@ export default function PlaylistsPage({songs, activeId, refreshKey}: Props) {
     () =>
       playlistSongIds
         .map(id => songsById.get(id))
-        .filter((song): song is LibrarySong => Boolean(song)),
+        .filter((song): song is LibrarySong => Boolean(song))
+        // Display (and play) playlist songs A→Z by title, case-insensitive.
+        .sort((a, b) =>
+          a.title.localeCompare(b.title, undefined, {sensitivity: 'base'}),
+        ),
     [playlistSongIds, songsById],
   );
 
@@ -378,6 +406,57 @@ export default function PlaylistsPage({songs, activeId, refreshKey}: Props) {
     [openAfterOptions],
   );
 
+  const applyPlaylistCoverImage = useCallback(
+    (playlistId: number, coverImageUri: string | null) => {
+      setPlaylists(list =>
+        list.map(playlist =>
+          playlist.id === playlistId ? {...playlist, coverImageUri} : playlist,
+        ),
+      );
+      setSelectedPlaylist(prev =>
+        prev && prev.id === playlistId ? {...prev, coverImageUri} : prev,
+      );
+    },
+    [],
+  );
+
+  const onChangeCoverOption = useCallback(
+    (playlist: Playlist) => {
+      // Close the options sheet first, then open the (native) image picker.
+      openAfterOptions(() => {
+        (async () => {
+          const dataUri = await pickImageAsDataUri();
+          if (!dataUri) {
+            return;
+          }
+          try {
+            await setPlaylistCoverImage(playlist.id, dataUri);
+            applyPlaylistCoverImage(playlist.id, dataUri);
+          } catch (e) {
+            console.warn('[playlists] set cover image failed', e);
+          }
+        })();
+      });
+    },
+    [openAfterOptions, applyPlaylistCoverImage],
+  );
+
+  const onRemoveCoverOption = useCallback(
+    (playlist: Playlist) => {
+      openAfterOptions(() => {
+        (async () => {
+          try {
+            await clearPlaylistCoverImage(playlist.id);
+            applyPlaylistCoverImage(playlist.id, null);
+          } catch (e) {
+            console.warn('[playlists] remove cover image failed', e);
+          }
+        })();
+      });
+    },
+    [openAfterOptions, applyPlaylistCoverImage],
+  );
+
   const applyPlaylistRename = useCallback(
     async (name: string) => {
       if (!renameTarget) {
@@ -428,15 +507,17 @@ export default function PlaylistsPage({songs, activeId, refreshKey}: Props) {
       }
       try {
         await setPlaylistCoverSong(selectedPlaylist.id, song.id);
+        // The DB also clears any uploaded image (song art would otherwise be
+        // hidden behind it) — mirror that in local state.
         setSelectedPlaylist(prev =>
           prev && prev.id === selectedPlaylist.id
-            ? {...prev, coverSongId: song.id}
+            ? {...prev, coverSongId: song.id, coverImageUri: null}
             : prev,
         );
         setPlaylists(list =>
           list.map(playlist =>
             playlist.id === selectedPlaylist.id
-              ? {...playlist, coverSongId: song.id}
+              ? {...playlist, coverSongId: song.id, coverImageUri: null}
               : playlist,
           ),
         );
@@ -510,15 +591,15 @@ export default function PlaylistsPage({songs, activeId, refreshKey}: Props) {
 
   const renderPlaylistItem = useCallback(
     ({item}: {item: Playlist}) => {
-      const listCover = item.coverSongId ? songsById.get(item.coverSongId) : null;
+      const coverUri = playlistCoverUri(item, songsById);
       return (
         <Pressable
           onPress={() => onPlaylistPress(item)}
           android_ripple={{color: palette.hairline}}
           style={({pressed}) => [styles.row, pressed && styles.rowPressed]}
         >
-          {listCover ? (
-            <SongCover uri={listCover.artwork} size={THUMB} />
+          {coverUri ? (
+            <SongCover uri={coverUri} size={THUMB} />
           ) : (
             <View style={styles.thumb}>
               <PlaylistIcon size={22} color={palette.deep} weight="fill" />
@@ -583,6 +664,8 @@ export default function PlaylistsPage({songs, activeId, refreshKey}: Props) {
         onClose={closePlaylistOptions}
         onDismiss={afterPlaylistOptionsDismiss}
         onRename={onRenamePlaylistOption}
+        onChangeCover={onChangeCoverOption}
+        onRemoveCover={onRemoveCoverOption}
         onDelete={onDeletePlaylistOption}
       />
       <RenameSheet
@@ -612,11 +695,13 @@ export default function PlaylistsPage({songs, activeId, refreshKey}: Props) {
   if (selectedPlaylist) {
     const detailCount = playlistSongIds.length;
     const canPlayPlaylist = playlistSongs.length > 0;
+    // Uploaded image wins over the song-based cover.
+    const heroCoverUri = selectedPlaylist.coverImageUri ?? coverSong?.artwork ?? '';
     const detailHeader = (
       <>
         <View style={styles.detailHeader}>
-          {coverSong ? (
-            <SongCover uri={coverSong.artwork} size={104} />
+          {heroCoverUri ? (
+            <SongCover uri={heroCoverUri} size={104} />
           ) : (
             <View style={styles.heroFallback}>
               <PlaylistIcon size={42} color={palette.deep} weight="fill" />

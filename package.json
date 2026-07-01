@@ -24,6 +24,7 @@
     "react-native": "0.85.3",
     "react-native-awesome-slider": "^2.9.0",
     "react-native-gesture-handler": "^3.0.2",
+    "react-native-image-picker": "^8.2.1",
     "react-native-mmkv": "^4.3.2",
     "react-native-nitro-modules": "^0.35.10",
     "react-native-paper": "^5.15.3",
