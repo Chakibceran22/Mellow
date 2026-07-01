@@ -701,76 +701,74 @@ export default function PlaylistsPage({songs, activeId, refreshKey}: Props) {
       <>
         <View style={styles.detailHeader}>
           {heroCoverUri ? (
-            <SongCover uri={heroCoverUri} size={104} />
+            <SongCover uri={heroCoverUri} size={88} />
           ) : (
             <View style={styles.heroFallback}>
-              <PlaylistIcon size={42} color={palette.deep} weight="fill" />
+              <PlaylistIcon size={38} color={palette.deep} weight="fill" />
             </View>
           )}
           <View style={styles.detailBody}>
-            <View style={styles.detailTitleRow}>
-              <View style={styles.detailText}>
-                <Text
-                  variant="headlineSmall"
-                  numberOfLines={2}
-                  style={styles.detailName}
-                >
-                  {selectedPlaylist.name}
-                </Text>
-                <Text variant="bodySmall" style={styles.detailSub}>
-                  {detailCount} {detailCount === 1 ? 'song' : 'songs'}
-                </Text>
-              </View>
-              <View style={styles.detailControls}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Shuffle ${selectedPlaylist.name}`}
-                  disabled={!canPlayPlaylist}
-                  hitSlop={8}
-                  onPress={shuffleSelectedPlaylist}
-                  android_ripple={
-                    canPlayPlaylist
-                      ? {
-                          color: palette.hairline,
-                          borderless: false,
-                          foreground: true,
-                        }
-                      : undefined
-                  }
-                  style={({pressed}) => [
-                    styles.detailControlBtn,
-                    styles.shuffleControlBtn,
-                    !canPlayPlaylist && styles.controlDisabled,
-                    pressed && canPlayPlaylist && styles.rowPressed,
-                  ]}
-                >
-                  <Shuffle size={22} color={palette.deep} weight="bold" />
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Play ${selectedPlaylist.name}`}
-                  disabled={!canPlayPlaylist}
-                  hitSlop={8}
-                  onPress={playSelectedPlaylist}
-                  android_ripple={
-                    canPlayPlaylist
-                      ? {
-                          color: 'rgba(255,255,255,0.18)',
-                          borderless: false,
-                          foreground: true,
-                        }
-                      : undefined
-                  }
-                  style={({pressed}) => [
-                    styles.detailControlBtn,
-                    styles.playControlBtn,
-                    !canPlayPlaylist && styles.controlDisabled,
-                    pressed && canPlayPlaylist && styles.rowPressed,
-                  ]}
-                >
-                  <Play size={22} color="#FFFFFF" weight="fill" />
-                </Pressable>
-              </View>
+            <View style={styles.detailText}>
+              <Text
+                variant="headlineSmall"
+                numberOfLines={2}
+                style={styles.detailName}
+              >
+                {selectedPlaylist.name}
+              </Text>
+              <Text variant="bodySmall" style={styles.detailSub}>
+                {detailCount} {detailCount === 1 ? 'song' : 'songs'}
+              </Text>
+            </View>
+            <View style={styles.detailControls}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Play ${selectedPlaylist.name}`}
+                disabled={!canPlayPlaylist}
+                hitSlop={8}
+                onPress={playSelectedPlaylist}
+                android_ripple={
+                  canPlayPlaylist
+                    ? {
+                        color: 'rgba(255,255,255,0.18)',
+                        borderless: false,
+                        foreground: true,
+                      }
+                    : undefined
+                }
+                style={({pressed}) => [
+                  styles.detailControlBtn,
+                  styles.playControlBtn,
+                  !canPlayPlaylist && styles.controlDisabled,
+                  pressed && canPlayPlaylist && styles.rowPressed,
+                ]}
+              >
+                <Play size={18} color="#FFFFFF" weight="fill" />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Shuffle ${selectedPlaylist.name}`}
+                disabled={!canPlayPlaylist}
+                hitSlop={8}
+                onPress={shuffleSelectedPlaylist}
+                android_ripple={
+                  canPlayPlaylist
+                    ? {
+                        color: palette.hairline,
+                        borderless: false,
+                        foreground: true,
+                      }
+                    : undefined
+                }
+                style={({pressed}) => [
+                  styles.detailControlBtn,
+                  styles.shuffleControlBtn,
+                  !canPlayPlaylist && styles.controlDisabled,
+                  pressed && canPlayPlaylist && styles.rowPressed,
+                ]}
+              >
+                <Shuffle size={18} color={palette.deep} weight="bold" />
+              </Pressable>
             </View>
           </View>
         </View>
@@ -982,11 +980,11 @@ const styles = StyleSheet.create({
   detailListPad: {paddingBottom: 100},
   detailHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 16,
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 20,
+    paddingBottom: 18,
   },
   detailDivider: {
     height: 1,
@@ -996,38 +994,43 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   heroFallback: {
-    width: 104,
-    height: 104,
-    borderRadius: 25,
+    width: 88,
+    height: 88,
+    borderRadius: 21,
     backgroundColor: palette.tint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  detailBody: {flex: 1, minWidth: 0},
-  detailTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  // Title + count on top, action buttons pinned bottom-RIGHT. The body is locked
+  // to the cover's height so the buttons stay level with the picture and never
+  // drop below it.
+  detailBody: {
+    flex: 1,
+    minWidth: 0,
+    height: 88,
     justifyContent: 'space-between',
-    gap: 12,
   },
-  detailText: {flex: 1, minWidth: 0},
+  detailText: {minWidth: 0},
   detailName: {color: palette.ink, fontWeight: '800'},
-  detailSub: {color: palette.inkSoft, marginTop: 6, fontWeight: '600'},
+  detailSub: {color: palette.inkSoft, marginTop: 4, fontWeight: '600'},
   detailControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    alignSelf: 'flex-end',
+    gap: 10,
   },
   detailControlBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   shuffleControlBtn: {
     backgroundColor: palette.surfaceAlt,
+    borderWidth: 1,
+    borderColor: palette.sage,
   },
   playControlBtn: {
     backgroundColor: palette.deep,

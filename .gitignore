@@ -33,6 +33,11 @@ local.properties
 .cxx/
 *.keystore
 !debug.keystore
+# Release signing — never commit real keystores, their base64, or secret props
+*.jks
+*.b64
+keystore.properties
+signing.properties
 .kotlin/
 
 # node.js

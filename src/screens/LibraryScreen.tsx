@@ -26,8 +26,12 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import {ListPlus, MagnifyingGlass, Play, Shuffle, X} from 'phosphor-react-native';
+import {ListPlus, MagnifyingGlass, X} from 'phosphor-react-native';
 import SongRow from '../components/SongRow';
+import AlphabetScroller, {
+  SCROLLER_LETTERS,
+  sectionKey,
+} from '../components/AlphabetScroller';
 import PlayerSheet from '../components/PlayerSheet';
 import AddToPlaylistSheet from '../components/AddToPlaylistSheet';
 import AddSongsToPlaylistSheet from '../components/AddSongsToPlaylistSheet';
@@ -35,7 +39,7 @@ import PlaylistsPage from './PlaylistsPage';
 import {ListSkeleton} from '../components/skeleton';
 import {type LibrarySong} from '../data/mockSongs';
 import {fetchLibrarySongs} from '../services/musicLibrary';
-import {playFromList, playShuffled, setupPlayer} from '../player/setup';
+import {playFromList, setupPlayer} from '../player/setup';
 import {useCurrentMediaItem} from '../player/useCurrentMediaItem';
 import {palette} from '../theme/theme';
 
@@ -75,11 +79,35 @@ export default function LibraryScreen() {
   const [tabLayouts, setTabLayouts] = useState<TabLayout[]>([]);
   const [tabBarWidth, setTabBarWidth] = useState(0);
 
+  // Section letter of the top-most visible Songs row — drives the rail's idle
+  // highlight so it tracks normal scrolling too.
+  const [currentLetter, setCurrentLetter] = useState('#');
+
   const searchOpen = useSharedValue(0);
   const scrollX = useSharedValue(0); // pager horizontal offset, in px
   const inputRef = useRef<TextInput>(null);
   const pagerRef = useRef<ScrollView>(null);
   const tabBarRef = useRef<ScrollView>(null);
+  const listRef = useRef<FlatList<LibrarySong>>(null);
+
+  // Kept in refs so the FlatList never sees a changing onViewableItemsChanged
+  // (React Native forbids swapping it after mount).
+  const viewabilityConfig = useRef({itemVisiblePercentThreshold: 50});
+  const onViewableItemsChanged = useRef(
+    ({viewableItems}: {viewableItems: Array<{item: LibrarySong}>}) => {
+      const first = viewableItems[0];
+      if (first) {
+        setCurrentLetter(sectionKey(first.item.title));
+      }
+    },
+  );
+
+  // Jump the Songs list to a row index (from the alphabet rail). scrollToIndex
+  // can throw for not-yet-measured rows on a big list, so fall back to an
+  // estimated offset then retry once the frame is measured.
+  const scrubToIndex = useCallback((index: number) => {
+    listRef.current?.scrollToIndex({index, animated: false, viewPosition: 0});
+  }, []);
 
   const active = useCurrentMediaItem();
   const activeId = active?.mediaId ?? null;
@@ -120,18 +148,44 @@ export default function LibraryScreen() {
     }
   }, [searchActive, searchOpen]);
 
+  // Sorted A→Z by title so the alphabet rail lands on the right section. Search
+  // filters first, then the (filtered) result is sorted the same way.
   const songs = useMemo<LibrarySong[]>(() => {
     const q = query.trim().toLowerCase();
-    if (!q) {
-      return allSongs;
-    }
-    return allSongs.filter(
-      s =>
-        s.title.toLowerCase().includes(q) ||
-        s.artist.toLowerCase().includes(q) ||
-        s.album.toLowerCase().includes(q),
+    const base = !q
+      ? allSongs
+      : allSongs.filter(
+          s =>
+            s.title.toLowerCase().includes(q) ||
+            s.artist.toLowerCase().includes(q) ||
+            s.album.toLowerCase().includes(q),
+        );
+    return [...base].sort((a, b) =>
+      a.title.localeCompare(b.title, undefined, {sensitivity: 'base'}),
     );
   }, [query, allSongs]);
+
+  // For each rail letter, the first row index of that section. Missing letters
+  // resolve forward to the next present section (tap 'C' with no C → jumps to D).
+  const letterTargets = useMemo<number[]>(() => {
+    const firstOf: Record<string, number> = {};
+    songs.forEach((s, i) => {
+      const k = sectionKey(s.title);
+      if (firstOf[k] === undefined) {
+        firstOf[k] = i;
+      }
+    });
+    const out = new Array(SCROLLER_LETTERS.length);
+    let next = songs.length ? songs.length - 1 : 0;
+    for (let i = SCROLLER_LETTERS.length - 1; i >= 0; i--) {
+      const idx = firstOf[SCROLLER_LETTERS[i]];
+      if (idx !== undefined) {
+        next = idx;
+      }
+      out[i] = next;
+    }
+    return out;
+  }, [songs]);
 
   // Keep the active tab comfortably in view inside the (scrollable) tab bar.
   const ensureTabVisible = useCallback(
@@ -294,44 +348,6 @@ export default function LibraryScreen() {
     [],
   );
 
-  // Play All / Shuffle — sits above the rows and scrolls with the list. Both act
-  // on the songs currently shown (so they respect an active search filter too).
-  const ListHeader = useCallback(
-    () => (
-      <View style={styles.actionsRow}>
-        <Pressable
-          onPress={() => playFromList(songs, 0)}
-          android_ripple={{color: 'rgba(255,255,255,0.18)'}}
-          style={({pressed}) => [
-            styles.actionBtn,
-            styles.playAllBtn,
-            pressed && styles.actionPressed,
-          ]}
-        >
-          <Play size={18} color="#FFFFFF" weight="fill" />
-          <Text variant="labelLarge" style={styles.playAllLabel}>
-            Play all
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={() => playShuffled(songs)}
-          android_ripple={{color: palette.hairline}}
-          style={({pressed}) => [
-            styles.actionBtn,
-            styles.shuffleBtn,
-            pressed && styles.actionPressed,
-          ]}
-        >
-          <Shuffle size={18} color={palette.deep} weight="bold" />
-          <Text variant="labelLarge" style={styles.shuffleLabel}>
-            Shuffle
-          </Text>
-        </Pressable>
-      </View>
-    ),
-    [songs],
-  );
-
   const tabsAnimStyle = useAnimatedStyle(() => ({
     opacity: interpolate(searchOpen.value, [0, 1], [1, 0], Extrapolation.CLAMP),
   }));
@@ -375,34 +391,60 @@ export default function LibraryScreen() {
       return loading ? (
         <ListSkeleton count={10} />
       ) : (
-        <FlatList
-          data={songs}
-          keyExtractor={s => s.id}
-          renderItem={renderItem}
-          ItemSeparatorComponent={renderSeparator}
-          ListHeaderComponent={songs.length ? ListHeader : null}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listPad}
-          keyboardShouldPersistTaps="handled"
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => load('refresh')}
-              tintColor={palette.deep}
-              colors={[palette.deep]}
-              progressBackgroundColor={palette.surface}
+        <View style={styles.flex}>
+          <FlatList
+            ref={listRef}
+            data={songs}
+            keyExtractor={s => s.id}
+            renderItem={renderItem}
+            ItemSeparatorComponent={renderSeparator}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listPad}
+            keyboardShouldPersistTaps="handled"
+            onViewableItemsChanged={onViewableItemsChanged.current}
+            viewabilityConfig={viewabilityConfig.current}
+            onScrollToIndexFailed={info => {
+              listRef.current?.scrollToOffset({
+                offset: info.averageItemLength * info.index,
+                animated: false,
+              });
+              requestAnimationFrame(() =>
+                listRef.current?.scrollToIndex({
+                  index: info.index,
+                  animated: false,
+                  viewPosition: 0,
+                }),
+              );
+            }}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => load('refresh')}
+                tintColor={palette.deep}
+                colors={[palette.deep]}
+                progressBackgroundColor={palette.surface}
+              />
+            }
+            ListEmptyComponent={
+              <Text style={styles.empty}>
+                {denied
+                  ? 'Allow music access to see your library, then pull down to refresh.'
+                  : query
+                  ? `No songs match “${query}”.`
+                  : 'No music found on this device.'}
+              </Text>
+            }
+          />
+          {songs.length > 12 ? (
+            <AlphabetScroller
+              letters={SCROLLER_LETTERS}
+              targets={letterTargets}
+              activeLetter={currentLetter}
+              availableHeight={size.height}
+              onScrubIndex={scrubToIndex}
             />
-          }
-          ListEmptyComponent={
-            <Text style={styles.empty}>
-              {denied
-                ? 'Allow music access to see your library, then pull down to refresh.'
-                : query
-                ? `No songs match “${query}”.`
-                : 'No music found on this device.'}
-            </Text>
-          }
-        />
+          ) : null}
+        </View>
       );
     }
     if (tab === 'Playlists') {
@@ -649,39 +691,8 @@ const styles = StyleSheet.create({
   },
   selAddBtnDisabled: {opacity: 0.35},
 
-  // Play all / Shuffle
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 14,
-  },
-  actionBtn: {
-    flex: 1,
-    height: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderRadius: 14,
-  },
-  playAllBtn: {
-    backgroundColor: palette.deep,
-    shadowColor: palette.deep,
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    shadowOffset: {width: 0, height: 3},
-    elevation: 3,
-  },
-  shuffleBtn: {
-    backgroundColor: palette.surfaceAlt,
-    borderWidth: 1,
-    borderColor: palette.sage,
-  },
-  actionPressed: {opacity: 0.85},
-  playAllLabel: {color: '#FFFFFF', fontWeight: '700'},
-  shuffleLabel: {color: palette.deep, fontWeight: '700'},
+  // Shared pressed-state for the selection-bar add button.
+  actionPressed: {opacity: 0.8, transform: [{scale: 0.94}]},
 
   // Content
   listPad: {paddingTop: 6, paddingBottom: 92},
