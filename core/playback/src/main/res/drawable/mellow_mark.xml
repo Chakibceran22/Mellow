@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Mellow mark in full colour, at its native size. Drawn into the picture shown on
+     the playback notification for music that has no cover of its own.
+     Generated from assets/MellowLogoForeground.svg. The logo's centre lands on
+     (330, 330) of a 660 x 660 canvas: the exact middle. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="660dp"
+    android:height="660dp"
+    android:viewportWidth="660"
+    android:viewportHeight="660">
+    <group
+        android:scaleX="1.00000000"
+        android:scaleY="1.00000000"
+        android:translateX="0"
+        android:translateY="0">
+        <path
+            android:fillColor="#B1D3BA"
+            android:pathData="M0,330a330,330 0 1,0 660,0a330,330 0 1,0 -660,0z" />
+        <path
+            android:fillColor="#649288"
+            android:pathData="M149.462,330a180.538,180.538 0 1,0 361.076,0a180.538,180.538 0 1,0 -361.076,0z" />
+        <path
+            android:fillColor="#E6F1E0"
+            android:pathData="M269.344 261.251C269.344 248.935 282.677 241.236 293.344 247.395L412.882 316.41C423.549 322.569 423.549 337.965 412.882 344.123L293.344 413.139C282.677 419.297 269.344 411.599 269.344 399.282L269.344 261.251Z" />
+        <path
+            android:fillColor="#89BEA4"
+            android:pathData="M269.328,152.421a22.186,22.197 0 1,0 44.373,0a22.186,22.197 0 1,0 -44.373,0z" />
+        <path
+            android:fillColor="#89BEA4"
+            android:strokeColor="#89BEA4"
+            android:strokeWidth="1"
+            android:pathData="M298.909 57.5835V131.728V154.641H312.96V86.7675C312.96 85.0504 314.399 83.6836 316.114 83.7715L341.839 85.0897C350.713 77.6906 355.854 57.713 346.24 54.777C333.285 69.7843 313.416 56.491 301.7 54.904C300.135 54.692 298.909 56.0042 298.909 57.5835Z" />
+        <path
+            android:fillColor="#89BEA4"
+            android:pathData="M115.053,299.245C98.977,316.231 75.981,320.525 63.69,308.838C51.399,297.15 54.467,273.906 70.543,256.92C86.619,239.935 109.615,235.64 121.906,247.327C134.197,259.015 131.129,282.259 115.053,299.245z" />
+        <path
+            android:fillColor="#89BEA4"
+            android:strokeColor="#89BEA4"
+            android:strokeWidth="1"
+            android:pathData="M190.36 158.73L191.029 226.235L214.574 237.752L213.957 130.623C213.911 122.727 205.809 117.449 198.568 120.599L103.309 162.043C101.119 162.996 99.7029 165.157 99.7029 167.545V240.631L94.7085 244.95C103.746 255.507 122.249 276.909 123.961 278.06C125.674 279.212 128.004 273.262 128.956 270.143V182.157C128.956 180.951 129.678 179.863 130.789 179.394L186.193 155.996C188.159 155.166 190.339 156.596 190.36 158.73Z" />
+        <path
+            android:fillColor="#89BEA4"
+            android:pathData="M205.357,267.808C192.776,283.949 173.176,289.672 161.58,280.59C149.984,271.509 150.782,251.062 163.363,234.921C175.944,218.78 195.544,213.057 207.14,222.138C218.736,231.22 217.938,251.667 205.357,267.808z" />
+        <path
+            android:fillColor="#89BEA4"
+            android:strokeColor="#89BEA4"
+            android:strokeWidth="1"
+            android:pathData="M507.936 427.551C506.456 463.067 468.721 500.063 447.264 509.681C436.905 515.601 445.044 526.487 455.403 521.52C509.416 495.623 521.255 449.009 521.995 432.731C523.474 417.933 508.676 416.453 507.936 427.551Z" />
+        <path
+            android:fillColor="#89BEA4"
+            android:strokeColor="#89BEA4"
+            android:strokeWidth="1"
+            android:pathData="M533.451 448.152C531.971 483.668 494.236 520.663 472.778 530.282C462.42 536.202 470.559 547.087 480.917 542.121C534.931 516.224 546.769 469.61 547.509 453.332C548.989 438.533 534.191 437.054 533.451 448.152Z" />
+    </group>
+</vector>

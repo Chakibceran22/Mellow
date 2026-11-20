@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher icon. Both layers are vectors drawn on the full 108dp canvas with the mark
+     placed on its exact centre, so there is nothing to inset and nothing a screen density
+     can round off-centre. If the logo changes, run assets/make_icons.py to rebuild them. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+</adaptive-icon>

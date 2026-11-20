@@ -1,0 +1,7 @@
+<resources>
+    <!-- The window behind Compose. Its only job is to match the canvas colour so launch
+         never flashes white; everything visible is drawn by the design system. -->
+    <style name="Theme.Mellow" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
+</resources>

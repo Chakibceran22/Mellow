@@ -1,0 +1,5 @@
+<resources>
+    <!-- Mirrors MellowPalette.Cream. Used only before Compose draws its first frame. -->
+    <color name="ic_launcher_background">#E6F1E0</color>
+    <color name="window_background">#E6F1E0</color>
+</resources>
