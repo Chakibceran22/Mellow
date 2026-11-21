@@ -28,8 +28,10 @@ android {
         applicationId = "com.mellow.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        // The release workflow passes these from the tag (.github/workflows/release.yml);
+        // local builds keep the defaults.
+        versionCode = providers.gradleProperty("mellow.versionCode").orNull?.toInt() ?: 1
+        versionName = providers.gradleProperty("mellow.versionName").orNull ?: "0.1.0"
     }
 
     signingConfigs {

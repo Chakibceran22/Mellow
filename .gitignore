@@ -1,6 +1,7 @@
 # Build output. `build/` with no leading slash, so every module's is covered.
 build/
 .gradle/
+keys/
 .kotlin/
 captures/
 .externalNativeBuild

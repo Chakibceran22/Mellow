@@ -292,18 +292,23 @@ fun MellowApp(container: AppContainer) {
             // scroll beneath it. It is moved by exactly as much as the page is, so the two
             // arrive and leave as one piece.
             val searchOffset = { Tab.Search.ordinal - (pager.currentPage + pager.currentPageOffsetFraction) }
-            SearchBar(
-                viewModel = searchViewModel,
-                active = pager.currentPage == Tab.Search.ordinal,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding()
-                    .padding(start = ChromeMargin, end = ChromeMargin, top = SearchBarTopGap)
-                    .fillMaxWidth()
-                    .graphicsLayer { translationX = searchOffset() * widthPx }
-                    // A whole page away it is off screen: skip it, light and all.
-                    .drawWithContent { if (abs(searchOffset()) < 1f) drawContent() },
-            )
+            // A whole page away it is off screen. Its glass then holds still, and starts
+            // up again in the very frame the page begins to come back.
+            val searchOnScreen by remember { derivedStateOf { abs(searchOffset()) < 1f } }
+            GlassActivity(searchOnScreen) {
+                SearchBar(
+                    viewModel = searchViewModel,
+                    active = pager.currentPage == Tab.Search.ordinal,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(start = ChromeMargin, end = ChromeMargin, top = SearchBarTopGap)
+                        .fillMaxWidth()
+                        .graphicsLayer { translationX = searchOffset() * widthPx }
+                        // And it is not drawn at all.
+                        .drawWithContent { if (abs(searchOffset()) < 1f) drawContent() },
+                )
+            }
 
             // The bottom of the screen holds one of two things: the usual bars, or, while
             // songs are selected, what can be done with them.

@@ -79,6 +79,12 @@ fun BoxScope.LibrarySheets(viewModel: LibraryViewModel) {
     val last = remember { Kept<LibrarySheet>() }
     if (sheet != null) last.value = sheet
 
+    // How many times a sheet has come up. What was chosen on one sheet is forgotten when
+    // the next one opens, not when this one closes: it is still on screen while it leaves.
+    val openings = remember { Openings() }
+    if (sheet != null && sheet != openings.showing) openings.count++
+    openings.showing = sheet
+
     // The system's photo picker, for a playlist cover. It needs no permission: the user
     // hands over the one picture they pick and nothing else.
     val pickPicture = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { picked ->
@@ -87,7 +93,7 @@ fun BoxScope.LibrarySheets(viewModel: LibraryViewModel) {
 
     // The same picker, for the cover of one song or several. For one song the picture is
     // only held until its edit is saved; for several it is the whole edit, so it is applied.
-    var pickedForSong by remember(sheet) { mutableStateOf<String?>(null) }
+    var pickedForSong by remember(openings.count) { mutableStateOf<String?>(null) }
     val pickSongPicture = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { picked ->
         if (picked != null) {
             if (viewModel.editing?.single != null) pickedForSong = picked.toString() else viewModel.useCoverForEdited(picked.toString())
@@ -132,6 +138,7 @@ fun BoxScope.LibrarySheets(viewModel: LibraryViewModel) {
                 val editing = viewModel.editing
                 val song = editing?.single
                 when {
+                    // Not expected: the songs are read before the sheet is shown.
                     editing == null -> SheetTitle(if (shown.trackIds.size == 1) "Edit song" else "Edit ${songs(shown.trackIds.size)}")
                     song != null -> EditSong(
                         editing = editing,
@@ -152,6 +159,12 @@ fun BoxScope.LibrarySheets(viewModel: LibraryViewModel) {
             null -> Unit
         }
     }
+}
+
+/** Counts the sheets that have come up. Not state: it is only ever read where it is written. */
+private class Openings {
+    var showing: LibrarySheet? = null
+    var count = 0
 }
 
 /**

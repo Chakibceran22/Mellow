@@ -252,10 +252,13 @@ half4 main(float2 xy) {
 }
 """
 
+/** How far outside its own bounds a surface reads the backdrop, in pixels: room for the edge of its shape to fade out. */
+internal const val GlassEdge = 1
+
 /** Everything one frame of one glass surface needs. Reused across frames; never allocated per draw. */
 internal class GlassFrame {
-    /** The strip of frost under this surface, or null in the one frame before there is one. */
-    var band: FrostBand? = null
+    /** The strip of frost under this surface, or null when there is none: no scene, or one not drawn yet. */
+    var frost: Frost? = null
 
     /** True when there is nothing behind this surface worth bending, and it is painted directly. */
     var plain = false
@@ -282,26 +285,26 @@ internal class GlassPainter {
     private val plain: PlainGlass? =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) PlainGlass() else null
 
-    fun DrawScope.drawGlass(layer: GraphicsLayer, backdrop: Backdrop?, engine: LightingEngine, frame: GlassFrame) {
+    /** @param pane where the frost is bent. Null for a surface that needs none: painted glass, or a phone too old to blur. */
+    fun DrawScope.drawGlass(pane: GraphicsLayer?, backdrop: Backdrop?, engine: LightingEngine, frame: GlassFrame) {
         val radius = when (val shape = frame.shape) {
             GlassShape.Capsule -> min(size.width, size.height) / 2f
             is GlassShape.Continuous -> min(shape.radius.toPx(), min(size.width, size.height) / 2f)
         }
-        val band = frame.band
+        val frost = frame.frost
         when {
             frame.plain && plain != null -> with(plain) { draw(engine, frame, radius) }
-            backdrop == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.S -> drawFlat(frame.style, radius)
-            // No frost under it yet: leave the body out for this one frame rather than
-            // flash something that is not glass.
-            band == null -> Unit
-            refractive != null -> with(refractive) { draw(layer, band, engine, frame, radius) }
-            else -> drawFrosted(layer, band, frame, radius)
+            backdrop == null || pane == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.S -> drawFlat(frame.style, radius)
+            // The scene has not been drawn yet, so there is nothing to show through it.
+            frost == null -> Unit
+            refractive != null -> with(refractive) { draw(pane, frost, engine, frame, radius) }
+            else -> drawFrosted(pane, frost, frame, radius)
         }
     }
 
-    private fun DrawScope.drawFrosted(layer: GraphicsLayer, band: FrostBand, frame: GlassFrame, radius: Float) {
+    private fun DrawScope.drawFrosted(layer: GraphicsLayer, frost: Frost, frame: GlassFrame, radius: Float) {
         val style = frame.style
-        layer.record { with(band) { drawPatch(frame.origin) } }
+        layer.record { with(frost) { drawPatch(frame.origin) } }
         layer.topLeft = IntOffset.Zero
         layer.setRoundRectOutline(Offset.Zero, size, radius)
         layer.clip = true
@@ -326,7 +329,7 @@ private class RefractiveGlass {
     private val round = RuntimeShader(glassSource(continuous = false))
     private val continuous = RuntimeShader(glassSource(continuous = true))
 
-    fun DrawScope.draw(layer: GraphicsLayer, band: FrostBand, engine: LightingEngine, frame: GlassFrame, radius: Float) {
+    fun DrawScope.draw(layer: GraphicsLayer, frost: Frost, engine: LightingEngine, frame: GlassFrame, radius: Float) {
         val style = frame.style
 
         // This surface's patch of frost, scaled up, with a pixel of margin so the edge of
@@ -334,7 +337,7 @@ private class RefractiveGlass {
         layer.record(
             size = IntSize(ceil(size.width).toInt() + Margin * 2, ceil(size.height).toInt() + Margin * 2),
         ) {
-            with(band) { drawPatch(frame.origin, inset = Margin.toFloat()) }
+            with(frost) { drawPatch(frame.origin, inset = Margin.toFloat()) }
         }
         layer.topLeft = IntOffset(-Margin, -Margin)
 
@@ -374,7 +377,7 @@ private class RefractiveGlass {
     }
 
     private companion object {
-        const val Margin = 1
+        const val Margin = GlassEdge
     }
 }
 

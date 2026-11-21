@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,11 +17,11 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.center
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.dp
 import com.mellow.core.designsystem.component.LocalContentColor
 import com.mellow.core.designsystem.light.LocalLighting
 import com.mellow.core.designsystem.theme.MellowTheme
@@ -31,9 +30,15 @@ import com.mellow.core.designsystem.theme.asShadowCaster
 /**
  * A piece of glass.
  *
- * It shows the enclosing [GlassScene]'s frost (the scene behind it, blurred once and shared
- * by every surface), bent at the rim and lit by the app's [com.mellow.core.designsystem.light.LightingEngine]. Because it
- * redraws with the engine, the rim light follows the phone's tilt and the music on its own.
+ * It shows what the enclosing [GlassScene] has behind it, frosted, bent at the rim and lit
+ * by the app's [com.mellow.core.designsystem.light.LightingEngine]. Because it redraws with the engine, the rim light
+ * follows the phone's tilt and the music on its own.
+ *
+ * The frost is its own: the strip of the scene it lies over, taken afresh each time it
+ * draws, from where it is at that moment. So it can be slid, dragged, resized or carried
+ * along by a page and is never caught without something behind it. Between two steps of
+ * the light, a surface that is being moved is not drawn again: the pane it has already
+ * drawn is moved as it is, which costs nothing and keeps a slide at the screen's full rate.
  *
  * With [onClick] set the surface is a control: it swells slightly under the finger and a
  * small light blooms where it was touched.
@@ -71,19 +76,15 @@ fun GlassSurface(
     val plain = (LocalOnGlass.current || backdrop?.refracts == false) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
     val lightColor = MellowTheme.lighting.specular
 
-    val layer = rememberGraphicsLayer()
+    // Glass that shows the backdrop through itself needs room to keep its piece of it.
+    // Painted glass does not, and neither do phones too old to blur.
+    val optics = if (!plain && backdrop != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) rememberOptics() else null
     val painter = remember { GlassPainter() }
     val frame = remember { GlassFrame() }
     val placement = remember { Placement() }
     val interactionSource = remember { MutableInteractionSource() }
     val press = rememberPressState(interactionSource)
     val shadowCaster = remember(shape) { shape.asShape().asShadowCaster() }
-
-    // Its standing request for a strip of the scene to be frosted where it sits.
-    val claim = remember(backdrop, plain) { if (plain) null else backdrop?.claim() }
-    DisposableEffect(backdrop, claim) {
-        onDispose { if (backdrop != null && claim != null) backdrop.release(claim) }
-    }
 
     Box(
         modifier = modifier
@@ -120,11 +121,13 @@ fun GlassSurface(
                 } else {
                     Offset.Zero
                 }
-                // Ask for the frost under it. Besides its own bounds it reads a little
-                // beyond them (the bend at the rim) and may be about to move.
+                // Frost the strip of the scene it is lying over, now that it is known
+                // where that is.
                 frame.plain = plain
-                frame.band = if (backdrop != null && claim != null) {
-                    backdrop.bandFor(claim, Rect(frame.origin, size), style.refraction.toPx() + MotionSlack.toPx())
+                frame.frost = if (backdrop != null && optics != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val bounds = Rect(frame.origin, size)
+                    val frosted = with(optics.frost) { recordUnder(backdrop.scene, bounds, GlassEdge.toFloat(), backdrop.frost.toPx()) }
+                    if (frosted) optics.frost else null
                 } else {
                     null
                 }
@@ -134,7 +137,7 @@ fun GlassSurface(
                 frame.pressAmount = press.amount
                 frame.pressPosition = press.position
 
-                with(painter) { drawGlass(layer, backdrop, engine, frame) }
+                with(painter) { drawGlass(optics?.pane, backdrop, engine, frame) }
                 drawContent()
             }
             .then(
@@ -162,5 +165,13 @@ private class Placement {
     var coordinates: LayoutCoordinates? = null
 }
 
-/** Room around a surface that is frosted with it, so a small move does not uncover it. */
-private val MotionSlack = 20.dp
+/** What a surface needs to show the backdrop through itself: its own frosted strip, and the pane that strip is bent in. */
+private class Optics(val frost: Frost, val pane: GraphicsLayer)
+
+@Composable
+private fun rememberOptics(): Optics {
+    val source = rememberGraphicsLayer()
+    val kept = rememberGraphicsLayer()
+    val pane = rememberGraphicsLayer()
+    return remember(source, kept, pane) { Optics(Frost(source, kept), pane) }
+}

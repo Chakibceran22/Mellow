@@ -53,9 +53,11 @@ class LibraryViewModel(
     var sheet: LibrarySheet? by mutableStateOf(null)
         private set
 
-    /** The songs the edit sheet is about, once they have been read. Null before that. */
+    /** The songs the edit sheet is about. Read before the sheet is shown, and kept while it slides away. */
     var editing: EditingSongs? by mutableStateOf(null)
         private set
+
+    private var editJob: Job? = null
 
     private val _events = Channel<LibraryEvent>(Channel.BUFFERED)
 
@@ -209,19 +211,31 @@ class LibraryViewModel(
         uiState.value.open?.let { sheet = LibrarySheet.Cover(it.playlist.id) }
     }
 
-    /** Opens the edit sheet for the selected songs: names and cover for one, cover for several. */
+    /**
+     * Opens the edit sheet for the selected songs: names and cover for one, cover for several.
+     *
+     * The songs are read first and the sheet is shown once they are known, so that it
+     * comes up whole. Shown at once and filled in when the songs arrived, it rose as a
+     * bare title and jumped to its full height half way up.
+     */
     fun askToEdit(trackIds: Set<String>) {
         if (trackIds.isEmpty()) return
-        val asked = LibrarySheet.EditSongs(trackIds)
-        editing = null
-        sheet = asked
-        viewModelScope.launch {
+        editJob?.cancel()
+        editJob = viewModelScope.launch {
             val shown = library.tracksById(trackIds).associateBy(Track::id)
             val filed = library.tracksAsFiled(trackIds)
             // In the order they were picked, which is the order the user thinks of them in.
             val ordered = trackIds.mapNotNull(shown::get)
+            if (ordered.isEmpty()) {
+                // Deleted from outside Mellow since they were picked.
+                say(if (trackIds.size == 1) "That song is no longer on this phone" else "Those songs are no longer on this phone", selectionUsed = true)
+                return@launch
+            }
             val mates = ordered.singleOrNull()?.let { library.albumTracks(it.albumId).size - 1 } ?: 0
-            if (sheet == asked) editing = EditingSongs(ordered, filed, mates.coerceAtLeast(0))
+            // Another question may have come up while these were read. It keeps the screen.
+            if (sheet != null) return@launch
+            editing = EditingSongs(ordered, filed, mates.coerceAtLeast(0))
+            sheet = LibrarySheet.EditSongs(trackIds)
         }
     }
 
