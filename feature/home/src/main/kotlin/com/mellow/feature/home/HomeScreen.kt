@@ -29,7 +29,7 @@ import com.mellow.core.designsystem.theme.MellowTheme
 import com.mellow.feature.home.component.AccessPrompt
 import com.mellow.feature.home.component.AlbumShelf
 import com.mellow.feature.home.component.EmptyLibrary
-import com.mellow.feature.home.component.FeaturedAlbum
+import com.mellow.feature.home.component.FeaturedCard
 import com.mellow.feature.home.component.HomeHeader
 import com.mellow.feature.home.component.HomeSkeleton
 
@@ -68,6 +68,7 @@ fun HomeScreen(
             contentPadding = contentPadding,
             onTrackClick = viewModel::onTrackClick,
             onAlbumClick = viewModel::onAlbumClick,
+            onPlaylistClick = viewModel::onPlaylistClick,
             onTracksNearEnd = viewModel::onTracksNearEnd,
             onAlbumsNearEnd = viewModel::onAlbumsNearEnd,
             onAccessAnswered = viewModel::onAccessAnswered,
@@ -82,6 +83,7 @@ private fun HomeContent(
     contentPadding: PaddingValues,
     onTrackClick: (String) -> Unit,
     onAlbumClick: (String) -> Unit,
+    onPlaylistClick: (String) -> Unit,
     onTracksNearEnd: () -> Unit,
     onAlbumsNearEnd: () -> Unit,
     onAccessAnswered: () -> Unit,
@@ -118,17 +120,22 @@ private fun HomeContent(
 
             is HomeUiState.Ready -> {
                 item(key = "featured") {
-                    FeaturedAlbum(
-                        album = state.featured,
+                    FeaturedCard(
+                        item = state.featured,
                         playing = state.isPlaying(state.featured),
-                        onClick = { onAlbumClick(state.featured.id) },
+                        onClick = {
+                            when (val featured = state.featured) {
+                                is ShelfItem.OfAlbum -> onAlbumClick(featured.album.id)
+                                is ShelfItem.OfPlaylist -> onPlaylistClick(featured.playlist.id)
+                            }
+                        },
                         modifier = gutter,
                     )
                 }
                 item(key = "albums") {
                     Column {
                         SectionTitle("Albums", gutter.padding(top = spacing.xl))
-                        AlbumShelf(state.albums, state.moreAlbums, onAlbumClick, onAlbumsNearEnd)
+                        AlbumShelf(state.shelf, state.moreAlbums, onAlbumClick, onPlaylistClick, onAlbumsNearEnd)
                     }
                 }
                 item(key = "tracks-title") {

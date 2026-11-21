@@ -18,16 +18,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.mellow.core.designsystem.component.CoverArt
+import com.mellow.core.designsystem.component.CoverMosaic
 import com.mellow.core.designsystem.component.Skeleton
 import com.mellow.core.designsystem.component.SkeletonTextLine
 import com.mellow.core.designsystem.component.Text
 import com.mellow.core.designsystem.component.pressable
 import com.mellow.core.designsystem.theme.ContinuousCornerShape
 import com.mellow.core.designsystem.theme.MellowTheme
-import com.mellow.core.model.Album
+import com.mellow.feature.home.ShelfItem
 
 /**
- * Albums side by side. The row bleeds past the screen edge so it reads as scrollable.
+ * The user's playlists, then the albums on the phone, side by side. The row bleeds past
+ * the screen edge so it reads as scrollable.
  *
  * @param more true while there are albums on the phone that have not been read yet. One
  *   placeholder then waits at the end of the row.
@@ -35,9 +37,10 @@ import com.mellow.core.model.Album
  */
 @Composable
 internal fun AlbumShelf(
-    albums: List<Album>,
+    items: List<ShelfItem>,
     more: Boolean,
     onAlbumClick: (String) -> Unit,
+    onPlaylistClick: (String) -> Unit,
     onNearEnd: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -50,7 +53,7 @@ internal fun AlbumShelf(
             lastVisible >= row.layoutInfo.totalItemsCount - LoadAhead
         }
     }
-    LaunchedEffect(nearEnd, albums.size, more) {
+    LaunchedEffect(nearEnd, items.size, more) {
         if (nearEnd && more) onNearEnd()
     }
 
@@ -60,21 +63,49 @@ internal fun AlbumShelf(
         contentPadding = PaddingValues(horizontal = spacing.gutter, vertical = HomeDimens.ShelfVerticalPadding),
         horizontalArrangement = Arrangement.spacedBy(spacing.md),
     ) {
-        items(albums, key = { it.id }, contentType = { "album" }) { album ->
-            Column(
-                modifier = Modifier
-                    .width(HomeDimens.ShelfCover)
-                    .pressable(onClick = { onAlbumClick(album.id) }, onClickLabel = "Play ${album.title}"),
-            ) {
-                CoverArt(album.artwork.uri, Modifier.size(HomeDimens.ShelfCover), elevation = 10.dp)
-                Spacer(Modifier.height(spacing.sm))
-                Text(album.title, style = MellowTheme.type.headline, maxLines = 1)
-                Text(album.artist, style = MellowTheme.type.caption, color = MellowTheme.colors.inkMuted, maxLines = 1)
+        // Two kinds of tile, told apart so a tile scrolling out is reused by one of its own kind.
+        items(items, key = { it.key }, contentType = { if (it is ShelfItem.OfAlbum) "album" else "playlist" }) { item ->
+            when (item) {
+                is ShelfItem.OfAlbum -> ShelfTile(
+                    title = item.album.title,
+                    subtitle = item.album.artist,
+                    onClick = { onAlbumClick(item.album.id) },
+                ) {
+                    CoverArt(item.album.artwork.uri, Modifier.size(HomeDimens.ShelfCover), elevation = 10.dp)
+                }
+                is ShelfItem.OfPlaylist -> ShelfTile(
+                    title = item.playlist.name,
+                    subtitle = "Playlist",
+                    onClick = { onPlaylistClick(item.playlist.id) },
+                ) {
+                    val covers = remember(item.playlist.covers) { item.playlist.covers.map { it.uri } }
+                    CoverMosaic(covers, Modifier.size(HomeDimens.ShelfCover), elevation = 10.dp)
+                }
             }
         }
         if (more) {
             item(key = "albums-more", contentType = "album-skeleton") { ShelfAlbumSkeleton() }
         }
+    }
+}
+
+/** One thing on the shelf: its cover, then its name and a line under it. */
+@Composable
+private fun ShelfTile(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    cover: @Composable () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .width(HomeDimens.ShelfCover)
+            .pressable(onClick = onClick, onClickLabel = "Play $title"),
+    ) {
+        cover()
+        Spacer(Modifier.height(MellowTheme.spacing.sm))
+        Text(title, style = MellowTheme.type.headline, maxLines = 1)
+        Text(subtitle, style = MellowTheme.type.caption, color = MellowTheme.colors.inkMuted, maxLines = 1)
     }
 }
 

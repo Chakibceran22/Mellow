@@ -111,7 +111,7 @@ import kotlin.math.abs
  */
 @Composable
 fun MellowApp(container: AppContainer) {
-    val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.factory(container.library, container.playback))
+    val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.factory(container.library, container.playlists, container.playback))
     val libraryViewModel: LibraryViewModel =
         viewModel(factory = LibraryViewModel.factory(container.library, container.playlists, container.playback))
     val searchViewModel: SearchViewModel = viewModel(factory = SearchViewModel.factory(container.library, container.playback))

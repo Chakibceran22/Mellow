@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.dp
 import com.mellow.core.designsystem.component.CoverArt
+import com.mellow.core.designsystem.component.CoverMosaic
 import com.mellow.core.designsystem.component.Icon
 import com.mellow.core.designsystem.component.Text
 import com.mellow.core.designsystem.component.pressable
@@ -35,16 +36,19 @@ import com.mellow.core.designsystem.icon.MellowIcons
 import com.mellow.core.designsystem.theme.ContinuousCornerShape
 import com.mellow.core.designsystem.theme.MellowTheme
 import com.mellow.core.designsystem.theme.asShadowCaster
-import com.mellow.core.model.Album
+import com.mellow.feature.home.ShelfItem
 
 /**
- * The album at the top of Home: its cover edge to edge, with a strip of clear glass along
- * the bottom that names it. The glass looks through to the cover itself, so the artwork's
+ * The card at the top of Home: a cover edge to edge, with a strip of clear glass along the
+ * bottom that names it. The glass looks through to the cover itself, so the artwork's
  * shapes bend at the strip's rim.
+ *
+ * It shows one of the user's own playlists. Only when they have made none does it show an
+ * album from the phone instead, so the top of the page is never empty.
  */
 @Composable
-internal fun FeaturedAlbum(
-    album: Album,
+internal fun FeaturedCard(
+    item: ShelfItem,
     playing: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -53,13 +57,29 @@ internal fun FeaturedAlbum(
     val radii = MellowTheme.radii
     val cardShape = remember(radii) { ContinuousCornerShape(radii.card) }
 
+    val title: String
+    val subtitle: String
+    when (item) {
+        is ShelfItem.OfAlbum -> {
+            title = item.album.title
+            subtitle = if (item.album.trackCount == 1) "1 track by ${item.album.artist}" else "${item.album.trackCount} tracks by ${item.album.artist}"
+        }
+        is ShelfItem.OfPlaylist -> {
+            title = item.playlist.name
+            subtitle = if (item.playlist.trackCount == 1) "Your playlist, 1 song" else "Your playlist, ${item.playlist.trackCount} songs"
+        }
+    }
+    // A playlist's cover: the one picture chosen for it, or four of its songs' covers.
+    val playlistCovers = remember(item) { (item as? ShelfItem.OfPlaylist)?.playlist?.covers?.map { it.uri } }
+    val mosaic = playlistCovers != null && playlistCovers.size >= 4
+
     GlassScene(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(HomeDimens.FeaturedAspect)
             .pressable(
                 onClick = onClick,
-                onClickLabel = if (playing) "Pause ${album.title}" else "Play ${album.title}",
+                onClickLabel = if (playing) "Pause $title" else "Play $title",
                 pressedScale = 0.975f,
             )
             .shadow(22.dp, cardShape.asShadowCaster(), clip = false, ambientColor = colors.shadow, spotColor = colors.shadow),
@@ -70,8 +90,13 @@ internal fun FeaturedAlbum(
             // else needs clipping. It lies on a solid card of the same shape: glass and
             // the card's shadow both need something opaque there while the cover is
             // still on its way, exactly as in the skeleton this replaces.
-            Box(Modifier.fillMaxSize().background(colors.surface, cardShape)) {
-                CoverArt(album.artwork.uri, Modifier.fillMaxSize(), shape = cardShape)
+            // Four covers are held together by a plain rounded clip (see CoverMosaic), so the
+            // card under them takes that same outline and no edge of it shows at the corners.
+            Box(Modifier.fillMaxSize().background(colors.surface, if (mosaic) cardShape.asShadowCaster() else cardShape)) {
+                when (item) {
+                    is ShelfItem.OfAlbum -> CoverArt(item.album.artwork.uri, Modifier.fillMaxSize(), shape = cardShape)
+                    is ShelfItem.OfPlaylist -> CoverMosaic(playlistCovers.orEmpty(), Modifier.fillMaxSize(), radius = radii.card)
+                }
             }
         },
     ) {
@@ -90,9 +115,9 @@ internal fun FeaturedAlbum(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(album.title, style = MellowTheme.type.headline, maxLines = 1)
+                    Text(title, style = MellowTheme.type.headline, maxLines = 1)
                     Text(
-                        text = if (album.trackCount == 1) "1 track by ${album.artist}" else "${album.trackCount} tracks by ${album.artist}",
+                        text = subtitle,
                         style = MellowTheme.type.caption,
                         color = colors.inkMuted,
                         maxLines = 1,
