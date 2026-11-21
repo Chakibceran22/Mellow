@@ -104,9 +104,10 @@ private fun SettingsContent(
                 Text("Backup", style = MellowTheme.type.title, modifier = Modifier.semantics { heading() })
                 Spacer(Modifier.height(spacing.xs))
                 Text(
-                    text = "Your playlists, and the names and covers you have given songs, are kept inside " +
-                        "Mellow, so removing the app removes them. Save a backup file before you reinstall, " +
-                        "and import it afterwards to get them back. The file lists your songs; the songs " +
+                    text = "Your playlists are kept inside Mellow, so removing the app removes them. Save a " +
+                        "backup file before you reinstall, and import it afterwards to get them back. What " +
+                        "you change about a song, its names or its cover, is written into the song itself, so " +
+                        "it stays with the song and needs no backup. The file lists your songs; the songs " +
                         "themselves stay on the phone.",
                     color = colors.inkMuted,
                     modifier = Modifier.widthIn(max = 360.dp),

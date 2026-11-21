@@ -1,0 +1,5 @@
+<resources>
+    <!-- The same mark on the dark green of the palette (MellowPalette.Pine) instead of the
+         cream: told apart from the real app at a glance, before the name is read. -->
+    <color name="ic_launcher_background">#16302A</color>
+</resources>

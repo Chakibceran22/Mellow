@@ -11,6 +11,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mellow.core.data.LibraryRepository
 import com.mellow.core.data.PlaylistRepository
+import com.mellow.core.data.SongChanges
 import com.mellow.core.data.paging.Paged
 import com.mellow.core.data.paging.Pager
 import com.mellow.core.model.Playlist
@@ -58,6 +59,21 @@ class LibraryViewModel(
         private set
 
     private var editJob: Job? = null
+
+    /**
+     * Android's own question about changing song files ("Allow Mellow to modify these
+     * audio files?"), waiting to be put to the user. Only an activity can put it, so the
+     * shell watches this: it calls [onWriteQuestionShown] as it launches the question and
+     * [onWriteAnswered] with what the user said.
+     */
+    var writeQuestion: IntentSender? by mutableStateOf(null)
+        private set
+
+    /** What is to be done to which songs once the question is answered. */
+    private var awaitingAnswer: WriteToSongs? = null
+
+    /** How many songs the user was last asked about moving covers into, so as not to ask twice about the same ones. */
+    private var askedToMove = 0
 
     private val _events = Channel<LibraryEvent>(Channel.BUFFERED)
 
@@ -183,6 +199,11 @@ class LibraryViewModel(
 
     fun onShuffleToggle() = playback.toggleShuffle()
 
+    init {
+        // Each time the library is read afresh: at the start, and when a backup brings covers in.
+        viewModelScope.launch { library.revision.collect { offerToMovePictures() } }
+    }
+
     // ── Sheets ──────────────────────────────────────────────────────────────
 
     fun dismissSheet() {
@@ -232,9 +253,10 @@ class LibraryViewModel(
                 return@launch
             }
             val mates = ordered.singleOrNull()?.let { library.albumTracks(it.albumId).size - 1 } ?: 0
+            val fromMellow = library.changesFromMellow(trackIds)
             // Another question may have come up while these were read. It keeps the screen.
             if (sheet != null) return@launch
-            editing = EditingSongs(ordered, filed, mates.coerceAtLeast(0))
+            editing = EditingSongs(ordered, filed, mates.coerceAtLeast(0), fromMellow.pictures, fromMellow.all)
             sheet = LibrarySheet.EditSongs(trackIds)
         }
     }
@@ -327,8 +349,9 @@ class LibraryViewModel(
     // ── Editing songs ───────────────────────────────────────────────────────
 
     /**
-     * The edit sheet's button, for one song. Nothing is written to the audio file: the
-     * names and the cover are Mellow's own, laid over what the file says.
+     * The edit sheet's button, for one song. What was changed is written into the song's
+     * own file, names and cover alike, so it is true of the song to Android and to every
+     * other app. Android asks the user before any of it happens.
      *
      * @param wholeAlbum also give a newly chosen picture to the other songs of its album.
      */
@@ -336,6 +359,43 @@ class LibraryViewModel(
         val song = editing?.single ?: return
         if (sheet !is LibrarySheet.EditSongs) return
         sheet = null
+        if (!library.canWriteToSongs) {
+            saveInMellow(song, title, artist, album, picture, wholeAlbum)
+            return
+        }
+        fun differs(typed: String, shown: String) = typed.trim().let { it.isNotEmpty() && it != shown }
+        val renamed = differs(title, song.title) || differs(artist, song.artist) || differs(album, song.album)
+        if (!renamed && picture == PictureChange.Keep) {
+            say("Nothing was changed", selectionUsed = true)
+            return
+        }
+        viewModelScope.launch {
+            val newPicture = (picture as? PictureChange.Use)?.pictureUri
+            val mates = if (wholeAlbum && newPicture != null) library.albumTracks(song.albumId).map(Track::id).filter { it != song.id } else emptyList()
+            val touched = listOf(song.id) + mates
+            writeToSongs(touched, ifRefused = "Nothing was changed. The song is as it was.") {
+                var done = SongChanges()
+                if (renamed || newPicture != null) done += library.writeSongDetails(song.id, title, artist, album, newPicture)
+                if (newPicture != null && mates.isNotEmpty() && !done.pictureUnreadable) done += library.writeCoverPicture(mates, newPicture)
+                if (picture == PictureChange.UseItsOwn) done += library.restoreCoverPicture(listOf(song.id))
+                playback.refresh(library.tracksById(touched))
+                say(
+                    message = when {
+                        done.pictureUnreadable -> "That picture could not be opened. Nothing was changed."
+                        done.changed == 0 -> "The song could not be changed. It is as it was."
+                        done.written == 0 -> "Saved in Mellow only: this kind of file cannot be changed"
+                        mates.isNotEmpty() -> "Saved, and wrote the picture into ${songs(done.written)}" + leftOut(done)
+                        picture == PictureChange.UseItsOwn && !renamed -> "Put back the picture it came with"
+                        else -> "Saved into the song itself"
+                    },
+                    selectionUsed = true,
+                )
+            }
+        }
+    }
+
+    /** The same save where Android gives an app no way to write to music: everything stays in Mellow. */
+    private fun saveInMellow(song: Track, title: String, artist: String, album: String, picture: PictureChange, wholeAlbum: Boolean) {
         viewModelScope.launch {
             library.rename(song.id, title, artist, album)
             var touched = listOf(song.id)
@@ -364,35 +424,184 @@ class LibraryViewModel(
     fun useCoverForEdited(pictureUri: String) {
         val ids = (sheet as? LibrarySheet.EditSongs)?.trackIds ?: return
         sheet = null
-        viewModelScope.launch {
-            if (library.setCoverPicture(ids, pictureUri)) {
-                playback.refresh(library.tracksById(ids))
-                say("Changed the cover of ${songs(ids.size)}", selectionUsed = true)
-            } else {
-                say("That picture could not be opened. Choose a different one.")
-            }
-        }
+        givePicture(ids.toList(), pictureUri)
     }
 
-    /** Back to their albums' covers, for every song in the edit sheet. */
+    /** Back to the pictures they came with, for every song in the edit sheet. */
     fun useOwnCoversForEdited() {
         val ids = (sheet as? LibrarySheet.EditSongs)?.trackIds ?: return
         sheet = null
-        viewModelScope.launch {
-            library.clearCoverPicture(ids)
-            playback.refresh(library.tracksById(ids))
-            say(if (ids.size == 1) "Back to its own cover" else "${songs(ids.size)} are back on their own covers", selectionUsed = true)
-        }
+        viewModelScope.launch { giveBackPictures(ids.toList()) }
     }
 
-    /** Forgets everything edited about the song in the edit sheet. */
+    /** Returns the song in the edit sheet to exactly what it was before Mellow changed it: its names and its picture. */
     fun undoEditsOfEdited() {
         val ids = (sheet as? LibrarySheet.EditSongs)?.trackIds ?: return
         sheet = null
         viewModelScope.launch {
-            library.undoEdits(ids)
+            val changes = library.changesFromMellow(ids)
+            if (changes.all.isEmpty()) {
+                say("There is nothing to undo", selectionUsed = true)
+                return@launch
+            }
+            suspend fun undo() {
+                val done = library.restoreSongs(ids)
+                playback.refresh(library.tracksById(ids))
+                say(if (done.written > 0) "Put back as it came" else "It could not be put back. Nothing was changed.", selectionUsed = true)
+            }
+            // Only a change that is in a file needs Android's leave to take out again.
+            if (changes.written.isEmpty()) undo() else writeToSongs(changes.written, ifRefused = "Nothing was changed. The song is as it was.") { undo() }
+        }
+    }
+
+    /**
+     * Makes a picture the cover of these songs: inside the songs' own files where Android
+     * lets an app write to them, after asking; kept in Mellow where it does not.
+     */
+    private fun givePicture(ids: List<String>, pictureUri: String) {
+        if (!library.canWriteToSongs) {
+            viewModelScope.launch {
+                if (library.setCoverPicture(ids, pictureUri)) {
+                    playback.refresh(library.tracksById(ids))
+                    say(if (ids.size == 1) "Changed the cover" else "Changed the cover of ${songs(ids.size)}", selectionUsed = true)
+                } else {
+                    say("That picture could not be opened. Choose a different one.")
+                }
+            }
+            return
+        }
+        writeToSongs(ids, ifRefused = if (ids.size == 1) "The picture was left as it is." else "The pictures were left as they are.") {
+            val done = library.writeCoverPicture(ids, pictureUri)
             playback.refresh(library.tracksById(ids))
-            say("Put back as the file has it", selectionUsed = true)
+            say(
+                message = when {
+                    done.pictureUnreadable -> "That picture could not be opened. Choose a different one."
+                    done.changed == 0 -> if (ids.size == 1) "The picture could not be changed. The song is as it was." else "The pictures could not be changed. The songs are as they were."
+                    done.written == 0 -> "Changed the cover in Mellow only: ${if (done.keptInMellow == 1) "this kind of file" else "these kinds of file"} cannot hold a picture"
+                    ids.size == 1 -> "The picture is now part of the song itself"
+                    else -> "Wrote the picture into ${songs(done.written)}" + leftOut(done)
+                },
+                selectionUsed = true,
+            )
+        }
+    }
+
+    /** Returns to these songs the pictures they had before Mellow changed them. */
+    private suspend fun giveBackPictures(ids: List<String>) {
+        val changes = library.changesFromMellow(ids)
+        if (changes.pictures.isEmpty()) {
+            say(if (ids.size == 1) "It already has the picture it came with" else "They already have the pictures they came with", selectionUsed = true)
+            return
+        }
+        suspend fun giveBack() {
+            val done = library.restoreCoverPicture(changes.pictures)
+            playback.refresh(library.tracksById(changes.pictures))
+            say(
+                message = when (done.written) {
+                    0 -> "The picture could not be put back. Nothing was changed."
+                    1 -> "Put back the picture it came with"
+                    else -> "Put back the pictures ${songs(done.written)} came with"
+                },
+                selectionUsed = true,
+            )
+        }
+        // Only a picture that is in a file needs Android's leave to take out again.
+        val inFiles = changes.pictures intersect changes.written
+        if (inFiles.isEmpty()) giveBack() else writeToSongs(inFiles, ifRefused = "The picture was left as it is.") { giveBack() }
+    }
+
+    /** The end of a sentence about several songs, for the ones that did not go as the rest did. */
+    private fun leftOut(done: SongChanges): String {
+        val kept = if (done.written > 0 && done.keptInMellow > 0) " ${done.keptInMellow} cannot hold one, so Mellow keeps it." else ""
+        val failed = if (done.failed > 0) " ${done.failed} could not be changed and ${if (done.failed == 1) "was" else "were"} left alone." else ""
+        return if (kept.isEmpty() && failed.isEmpty()) "" else ".$kept$failed"
+    }
+
+    // ── Writing to song files ───────────────────────────────────────────────
+
+    /**
+     * Does [work], which writes to these songs' files, once the user has told Android it
+     * may. Android's question is put by the shell ([writeQuestion]); the answer comes back
+     * through [onWriteAnswered].
+     *
+     * @param ifRefused what to tell the user if they say no.
+     */
+    private fun writeToSongs(trackIds: Collection<String>, ifRefused: String, work: suspend () -> Unit) {
+        val question = library.writeRequest(trackIds)
+        if (question == null) {
+            say(ifRefused)
+            return
+        }
+        awaitingAnswer = WriteToSongs(trackIds.toSet(), ifRefused, work)
+        writeQuestion = question
+    }
+
+    /** Whether a chosen cover goes into the song's file on this phone, rather than being kept in Mellow. */
+    val writesToSongs: Boolean get() = library.canWriteToSongs
+
+    /** The shell has put [writeQuestion] to the user. It is not to be put again. */
+    fun onWriteQuestionShown() {
+        writeQuestion = null
+    }
+
+    /** What the user told Android about changing the files. */
+    fun onWriteAnswered(allowed: Boolean) {
+        val asked = awaitingAnswer ?: return
+        awaitingAnswer = null
+        writeQuestion = null
+        if (!allowed) {
+            say(asked.ifRefused, selectionUsed = true)
+            return
+        }
+        viewModelScope.launch {
+            // A song that is playing is closed while it is rewritten and opened again after.
+            playback.letGo(asked.trackIds)
+            try {
+                asked.work()
+            } finally {
+                playback.pickUp()
+            }
+        }
+    }
+
+    /**
+     * Looks for covers that Mellow is still keeping to itself (chosen before it wrote them
+     * into songs, or brought in by a backup from then) and offers, once, to put them where
+     * they belong.
+     */
+    private suspend fun offerToMovePictures() {
+        if (!library.canWriteToSongs || !library.access.value || sheet != null || awaitingAnswer != null) return
+        val waiting = library.songsAwaitingWrite()
+        val count = waiting.all.size
+        // Asked about these already, and the answer was "not now".
+        if (count <= askedToMove) return
+        askedToMove = count
+        sheet = LibrarySheet.MovePictures(count, unfinished = waiting.unfinished.size)
+    }
+
+    /** The move sheet's button. */
+    fun moveWaitingPictures() {
+        if (sheet !is LibrarySheet.MovePictures) return
+        sheet = null
+        viewModelScope.launch {
+            val ids = library.songsAwaitingWrite().all
+            if (ids.isEmpty()) return@launch
+            writeToSongs(ids, ifRefused = "Nothing was written. Mellow will ask again next time it opens.") {
+                val done = library.writeAwaited()
+                playback.refresh(library.tracksById(ids))
+                say(
+                    when {
+                        done.written == 0 && done.keptInMellow == 0 -> "The changes could not be written. Nothing was changed."
+                        done.written == 0 -> "These kinds of file cannot be changed, so Mellow keeps what you changed"
+                        else -> {
+                            val moved = if (done.written == 1) "Your changes are now part of the song itself" else "Your changes are now part of ${songs(done.written)}"
+                            val kept = if (done.keptInMellow > 0) " ${done.keptInMellow} stay in Mellow: that kind of file cannot be changed." else ""
+                            val failed = if (done.failed > 0) " ${done.failed} could not be written." else ""
+                            if (kept.isEmpty() && failed.isEmpty()) moved else "$moved.$kept$failed"
+                        }
+                    },
+                )
+            }
         }
     }
 
@@ -425,6 +634,9 @@ class LibraryViewModel(
     }
 
     private class OpenTracks(val playlistId: String, val page: Paged<Track>)
+
+    /** Work on song files that is waiting for the user to tell Android it may be done. */
+    private class WriteToSongs(val trackIds: Set<String>, val ifRefused: String, val work: suspend () -> Unit)
 
     companion object {
         private const val DefaultName = "New playlist"

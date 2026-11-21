@@ -1,0 +1,4 @@
+<resources>
+    <!-- The name under the icon, so the app for trying things out is never mistaken for the real one. -->
+    <string name="app_name">Mellow Beta</string>
+</resources>

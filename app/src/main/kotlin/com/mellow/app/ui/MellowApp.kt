@@ -174,6 +174,20 @@ fun MellowApp(container: AppContainer) {
         if (result.resultCode == Activity.RESULT_OK) libraryViewModel.onFilesDeleted(deleting.toSet())
         deleting = emptyList()
     }
+    // Writing to song files (a cover going into its song). Android asks the user about
+    // that as well; the Library says when there is something to ask and hears the answer.
+    val confirmWrite = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        libraryViewModel.onWriteAnswered(result.resultCode == Activity.RESULT_OK)
+    }
+    val writeQuestion = libraryViewModel.writeQuestion
+    LaunchedEffect(writeQuestion) {
+        if (writeQuestion != null) {
+            // Taken before it is put, so that a rebuilt screen does not put it twice.
+            libraryViewModel.onWriteQuestionShown()
+            confirmWrite.launch(IntentSenderRequest.Builder(writeQuestion).build())
+        }
+    }
+
     fun deleteSelectedFiles() {
         val request = libraryViewModel.deleteFilesRequest(selection.keys) ?: return
         deleting = ArrayList(selection.keys)

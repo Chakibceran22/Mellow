@@ -15,6 +15,7 @@ import com.mellow.core.model.Artwork
 import com.mellow.core.model.RepeatMode
 import com.mellow.core.model.Track
 import com.mellow.core.playback.service.AudioLevelMeter
+import com.mellow.core.playback.service.AudioSpectrum
 import com.mellow.core.playback.service.PlaybackService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -79,6 +80,8 @@ class MediaPlaybackController(context: Context) : PlaybackController {
     }
 
     override fun audioLevel(): Float = AudioLevelMeter.current()
+
+    override fun audioSpectrum(into: FloatArray): Boolean = AudioSpectrum.read(into)
 
     override fun connect() {
         if (controller != null || connecting != null) return
@@ -146,6 +149,26 @@ class MediaPlaybackController(context: Context) : PlaybackController {
         }
     }
 
+    /** True between [letGo] and [pickUp], if the player really did have to let go. */
+    private var lettingGo = false
+
+    override fun letGo(trackIds: Set<String>) {
+        val player = controller ?: return
+        if (player.mediaItemCount == 0 || player.playbackState == Player.STATE_IDLE) return
+        val current = player.currentMediaItem?.mediaId
+        val next = if (player.hasNextMediaItem()) player.getMediaItemAt(player.nextMediaItemIndex).mediaId else null
+        if (current !in trackIds && next !in trackIds) return
+        lettingGo = true
+        // Releases what is loaded and keeps the queue, the position and whether it was playing.
+        player.stop()
+    }
+
+    override fun pickUp() {
+        if (!lettingGo) return
+        lettingGo = false
+        controller?.prepare()
+    }
+
     override fun togglePlayPause() = send { player ->
         when {
             player.isPlaying -> player.pause()
@@ -162,6 +185,8 @@ class MediaPlaybackController(context: Context) : PlaybackController {
 
     /** Restarts the track if it is under way, otherwise steps back one, as music players do. */
     override fun previous() = send { it.seekToPrevious() }
+
+    override fun previousTrack() = send { it.seekToPreviousMediaItem() }
 
     override fun seekTo(positionMs: Long) = send { it.seekTo(positionMs) }
 
@@ -241,6 +266,8 @@ class MediaPlaybackController(context: Context) : PlaybackController {
                 else -> RepeatMode.Off
             },
             source = if (item == null) null else source,
+            hasNext = player.hasNextMediaItem(),
+            hasPrevious = player.hasPreviousMediaItem(),
         )
     }
 

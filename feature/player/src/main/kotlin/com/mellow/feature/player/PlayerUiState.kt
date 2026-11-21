@@ -12,4 +12,7 @@ data class PlayerUiState(
     val durationMs: Long = 0L,
     val shuffle: Boolean = false,
     val repeat: RepeatMode = RepeatMode.Off,
+    /** Whether there is a track to skip on to, and one to skip back to. A swipe that has nowhere to go gives a little and springs back. */
+    val canSkipNext: Boolean = false,
+    val canSkipPrevious: Boolean = false,
 )

@@ -19,6 +19,10 @@ data class PlaybackState(
      * is playing" from "one of my songs happens to be playing from somewhere else".
      */
     val source: String? = null,
+    /** Whether there is a track after this one in the playing order, shuffle and repeat considered. */
+    val hasNext: Boolean = false,
+    /** Whether there is a track before this one in the playing order. */
+    val hasPrevious: Boolean = false,
 ) {
     val trackId: String? get() = track?.id
 }
@@ -32,6 +36,9 @@ object QueueSource {
 
     fun playlist(playlistId: String) = "playlist:$playlistId"
 }
+
+/** How many bands [PlaybackController.audioSpectrum] divides the sound into. */
+const val SpectrumBands = 24
 
 /**
  * Supplies the rest of a long queue a page at a time. Given how many tracks the queue
@@ -54,6 +61,18 @@ interface PlaybackController {
 
     /** How loud the audio leaving the player is at this moment, 0..1. Cheap enough to call every frame. */
     fun audioLevel(): Float
+
+    /**
+     * What the sound coming out of the speaker is made of at this moment: how strong each
+     * part of it is, from the lowest notes to the highest. Fills the first [SpectrumBands]
+     * of [into] with levels from 0 to 1 and returns true; or returns false and leaves
+     * [into] alone when there is nothing sounding. The levels are scaled to the music, so
+     * a quiet record fills the range as a loud one does.
+     *
+     * Cheap enough to call every frame, and it allocates nothing. The measuring behind it
+     * only runs while this is being called.
+     */
+    fun audioSpectrum(into: FloatArray): Boolean
 
     /** Binds to the playback service. Safe to call repeatedly. */
     fun connect()
@@ -84,11 +103,28 @@ interface PlaybackController {
      */
     fun refresh(tracks: Collection<Track>)
 
+    /**
+     * Has the player let go of these tracks' files, because they are about to be written
+     * to. Only matters if one of them is loaded (the track that is on, or the one lined up
+     * behind it): the player then closes it and keeps its place. A file rewritten under a
+     * player that still has it open plays wrong from then on.
+     *
+     * Always follow it with [pickUp], whether or not the files were changed in the end.
+     */
+    fun letGo(trackIds: Set<String>)
+
+    /** After [letGo]: opens the track again and carries on from the same spot, playing if it was playing. */
+    fun pickUp()
+
     fun togglePlayPause()
 
     fun next()
 
+    /** Restarts the track if it is under way, otherwise steps back one, as a player's back button does. */
     fun previous()
+
+    /** Steps back to the track before this one, however far into this one it is. For a gesture that means "the one before", never "again". */
+    fun previousTrack()
 
     fun seekTo(positionMs: Long)
 

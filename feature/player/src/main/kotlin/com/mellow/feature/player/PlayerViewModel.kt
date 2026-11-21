@@ -33,6 +33,8 @@ class PlayerViewModel(
                 durationMs = playback.durationMs.takeIf { it > 0 } ?: playback.track?.durationMs ?: 0L,
                 shuffle = playback.shuffle,
                 repeat = playback.repeat,
+                canSkipNext = playback.hasNext,
+                canSkipPrevious = playback.hasPrevious,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PlayerUiState())
 
@@ -44,6 +46,12 @@ class PlayerViewModel(
     fun next() = playback.next()
 
     fun previous() = playback.previous()
+
+    /** The track before this one, however far into this one it is. What a swipe back means. */
+    fun previousTrack() = playback.previousTrack()
+
+    /** The sound as it is right now, band by band. See [PlaybackController.audioSpectrum]. */
+    fun audioSpectrum(into: FloatArray): Boolean = playback.audioSpectrum(into)
 
     fun seekTo(positionMs: Long) = playback.seekTo(positionMs)
 

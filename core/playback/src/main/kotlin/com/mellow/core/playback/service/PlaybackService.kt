@@ -62,6 +62,14 @@ class PlaybackService : MediaSessionService() {
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
 
+        // The spectrum keeps time with the speaker, and has to know when it falls silent.
+        AudioSpectrum.setPlaying(false)
+        player.addListener(
+            object : Player.Listener {
+                override fun onIsPlayingChanged(isPlaying: Boolean) = AudioSpectrum.setPlaying(isPlaying)
+            },
+        )
+
         session = MediaSession.Builder(this, player)
             .setCallback(DeviceAudioOnly())
             .setBitmapLoader(CacheBitmapLoader(MarkWhenNoCover(this, DataSourceBitmapLoader(this))))

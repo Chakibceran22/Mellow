@@ -39,12 +39,18 @@ import com.mellow.core.designsystem.theme.MellowMotion
 import com.mellow.core.designsystem.theme.MellowTheme
 import com.mellow.core.designsystem.theme.tabular
 import com.mellow.core.model.Track
+import com.mellow.feature.player.component.Spectrum
+import com.mellow.feature.player.component.TrackSwipe
+import com.mellow.feature.player.component.TrackSwipeState
 import com.mellow.feature.player.component.Transport
 import kotlinx.coroutines.delay
 
 /**
  * The full player. The room behind it is the same lit surface as the rest of the app,
  * turned up and tinted by the track's cover; the controls sit on one panel of glass.
+ *
+ * The song itself, cover and name, can be pushed aside to skip: left for the next track,
+ * right for the one before. Between it and the controls the sound is drawn as it plays.
  *
  * It is meant to stay composed while a track is loaded, parked off screen, so that opening
  * it is a slide and not a build.
@@ -72,6 +78,7 @@ fun NowPlayingScreen(
         backdrop = { LightField(Modifier.fillMaxSize(), vividness = 1.3f, active = visible) },
     ) {
         val track = state.track ?: return@GlassScene
+        val swipe = remember { TrackSwipeState() }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -79,16 +86,40 @@ fun NowPlayingScreen(
                 .padding(horizontal = 24.dp),
         ) {
             TopBar(track.album, onCollapse)
-            Artwork(track, state.isPlaying, Modifier.weight(1f).fillMaxWidth())
-            Titles(track)
-            Spacer(Modifier.height(20.dp))
+            TrackSwipe(
+                track = track,
+                state = swipe,
+                canGoNext = state.canSkipNext,
+                canGoPrevious = state.canSkipPrevious,
+                onNext = viewModel::next,
+                // The one before, not this one from the top: see TrackSwipe.
+                onPrevious = viewModel::previousTrack,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            ) { shown ->
+                Artwork(shown, state.isPlaying, Modifier.weight(1f).fillMaxWidth())
+                Titles(shown)
+            }
+            Spacer(Modifier.height(SpectrumGap))
+            Spectrum(
+                read = viewModel::audioSpectrum,
+                playing = state.isPlaying && visible,
+                modifier = Modifier.fillMaxWidth().height(SpectrumHeight),
+            )
+            Spacer(Modifier.height(SpectrumGap))
             Controls(
                 state = state,
                 positionMs = positionMs,
                 onSeek = viewModel::seekTo,
                 onTogglePlayPause = viewModel::togglePlayPause,
-                onPrevious = viewModel::previous,
-                onNext = viewModel::next,
+                // The buttons skip too, and the cover leaves the way a swipe would send it.
+                onPrevious = {
+                    swipe.expectPrevious()
+                    viewModel.previous()
+                },
+                onNext = {
+                    swipe.expectNext()
+                    viewModel.next()
+                },
                 onToggleShuffle = viewModel::toggleShuffle,
                 onCycleRepeat = viewModel::cycleRepeat,
             )
@@ -212,6 +243,9 @@ private fun Controls(
         }
     }
 }
+
+private val SpectrumHeight = 40.dp
+private val SpectrumGap = 14.dp
 
 private fun formatTime(millis: Long): String {
     val seconds = (millis / 1000).coerceAtLeast(0)

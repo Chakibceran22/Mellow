@@ -134,6 +134,13 @@ fun BoxScope.LibrarySheets(viewModel: LibraryViewModel) {
                 onTrack = viewModel::useTrackCover,
             )
 
+            is LibrarySheet.MovePictures -> MovePictures(
+                count = shown.count,
+                unfinished = shown.unfinished,
+                onMove = viewModel::moveWaitingPictures,
+                onLater = viewModel::dismissSheet,
+            )
+
             is LibrarySheet.EditSongs -> {
                 val editing = viewModel.editing
                 val song = editing?.single
@@ -143,6 +150,7 @@ fun BoxScope.LibrarySheets(viewModel: LibraryViewModel) {
                     song != null -> EditSong(
                         editing = editing,
                         song = song,
+                        writesToSong = viewModel.writesToSongs,
                         pickedPicture = pickedForSong,
                         onChoosePicture = choosePicture,
                         onSave = viewModel::saveSongEdit,
@@ -150,6 +158,7 @@ fun BoxScope.LibrarySheets(viewModel: LibraryViewModel) {
                     )
                     else -> EditSongsTogether(
                         editing = editing,
+                        writesToSongs = viewModel.writesToSongs,
                         onChoosePicture = choosePicture,
                         onUseOwnCovers = viewModel::useOwnCoversForEdited,
                     )
@@ -169,15 +178,21 @@ private class Openings {
 
 /**
  * One song: what it is called, who it is by, which album it says it is from, and its
- * cover. The album is shown plainly because it explains the most common surprise: songs
- * saved from the same place often carry the same album name, and so the same cover.
+ * cover.
+ *
+ * What is changed here is written into the song's own file, names and cover alike, so it
+ * becomes true of the song everywhere and not only in Mellow. The sheet says so above its
+ * button, because that is a bigger thing to agree to than a change inside one app.
  *
  * Nothing changes until Save is pressed, the picture included.
+ *
+ * @param writesToSong false on a phone where Mellow can only keep changes to itself.
  */
 @Composable
 private fun EditSong(
     editing: EditingSongs,
     song: Track,
+    writesToSong: Boolean,
     pickedPicture: String?,
     onChoosePicture: () -> Unit,
     onSave: (title: String, artist: String, album: String, picture: PictureChange, wholeAlbum: Boolean) -> Unit,
@@ -192,16 +207,18 @@ private fun EditSong(
     var backToOwnCover by remember(song.id) { mutableStateOf(false) }
     var wholeAlbum by remember(song.id) { mutableStateOf(false) }
 
-    val wearsOwnPicture = filed != null && filed.artwork != song.artwork
+    val wearsOwnPicture = song.id in editing.pictureFromMellow
     val picture = when {
         pickedPicture != null -> PictureChange.Use(pickedPicture)
         backToOwnCover -> PictureChange.UseItsOwn
         else -> PictureChange.Keep
     }
-    // What the cover will be once saved.
+    // What the cover will be once saved. A cover Mellow only keeps to itself hides the
+    // song's own, which can be shown. One written into the file replaced it there, and
+    // the original is put aside where there is no picture to show of it until it is back.
     val preview = when (picture) {
         is PictureChange.Use -> picture.pictureUri
-        PictureChange.UseItsOwn -> filed?.artwork?.uri
+        PictureChange.UseItsOwn -> filed?.artwork?.uri?.takeIf { it != song.artwork.uri }
         PictureChange.Keep -> song.artwork.uri
     }
 
@@ -222,9 +239,13 @@ private fun EditSong(
             Spacer(Modifier.height(2.dp))
             TextLink("Choose a picture", onChoosePicture)
             if (wearsOwnPicture && picture is PictureChange.Keep) {
-                TextLink("Use the album's cover", onClick = { backToOwnCover = true })
+                TextLink("Go back to its original picture", onClick = { backToOwnCover = true })
             }
         }
+    }
+    if (picture is PictureChange.UseItsOwn) {
+        Spacer(Modifier.height(10.dp))
+        Text("The picture it came with will be put back when you save.", style = MellowTheme.type.caption, color = colors.inkMuted)
     }
 
     Spacer(Modifier.height(16.dp))
@@ -259,7 +280,15 @@ private fun EditSong(
         }
     }
 
-    Spacer(Modifier.height(18.dp))
+    if (writesToSong) {
+        Spacer(Modifier.height(14.dp))
+        Text(
+            text = "Saved into the song itself, so every app shows it. Android will ask you to allow it.",
+            style = MellowTheme.type.caption,
+            color = colors.inkMuted,
+        )
+    }
+    Spacer(Modifier.height(if (writesToSong) 12.dp else 18.dp))
     Button(
         text = "Save changes",
         onClick = { onSave(title.text, artist.text, album.text, picture, wholeAlbum) },
@@ -279,6 +308,7 @@ private fun EditSong(
 @Composable
 private fun EditSongsTogether(
     editing: EditingSongs,
+    writesToSongs: Boolean,
     onChoosePicture: () -> Unit,
     onUseOwnCovers: () -> Unit,
 ) {
@@ -308,15 +338,66 @@ private fun EditSongsTogether(
 
     Spacer(Modifier.height(14.dp))
     Text(
-        text = "A picture you choose becomes the cover of all $count. To change a name, edit one song by itself.",
+        text = if (writesToSongs) {
+            "A picture you choose is written into all $count songs, so every app shows it. To change a name, edit one song by itself."
+        } else {
+            "A picture you choose becomes the cover of all $count. To change a name, edit one song by itself."
+        },
         color = colors.inkMuted,
     )
     Spacer(Modifier.height(18.dp))
     Button("Choose a picture for all $count", onClick = onChoosePicture, icon = MellowIcons.Picture, modifier = Modifier.fillMaxWidth())
     if (editing.anyOwnPicture) {
         Spacer(Modifier.height(10.dp))
-        Button("Go back to their albums' covers", onClick = onUseOwnCovers, kind = ButtonKind.Quiet, modifier = Modifier.fillMaxWidth())
+        Button("Go back to their original pictures", onClick = onUseOwnCovers, kind = ButtonKind.Quiet, modifier = Modifier.fillMaxWidth())
     }
+}
+
+/**
+ * Covers chosen when Mellow kept them to itself, offered a place in their songs. It says
+ * what will happen to the files before Android asks, because Android's own question only
+ * says that they will be modified.
+ */
+@Composable
+private fun MovePictures(count: Int, unfinished: Int, onMove: () -> Unit, onLater: () -> Unit) {
+    val one = count == 1
+    // Mellow was closed in the middle of writing to a song. That comes first and is said
+    // plainly, because until it is finished that song may not be whole.
+    val interrupted = unfinished > 0
+    SheetTitle(
+        when {
+            interrupted -> if (one) "Finish saving a song" else "Finish saving your songs"
+            one -> "Put your changes into the song"
+            else -> "Put your changes into the songs"
+        },
+    )
+    Spacer(Modifier.height(6.dp))
+    Text(
+        text = if (interrupted) {
+            (if (unfinished == 1) "Mellow was closed while it was writing to a song. " else "Mellow was closed while it was writing to $unfinished songs. ") +
+                "It kept what it needs to finish the job, or to put the song back exactly as it was. Until then the song may not play right." +
+                if (count > unfinished) " ${count - unfinished} more ${if (count - unfinished == 1) "song has" else "songs have"} changes waiting to be written as well." else ""
+        } else {
+            (if (one) "1 song has a name or a cover you changed that only Mellow can see. " else "$count songs have a name or a cover you changed that only Mellow can see. ") +
+                "Written into the song itself, it becomes true of the song on this phone and in every app. " +
+                "Nothing else about the song is changed, and what it said before is kept so you can go back."
+        },
+        color = MellowTheme.colors.inkMuted,
+    )
+    Spacer(Modifier.height(10.dp))
+    Text("Android will ask you to allow it.", color = MellowTheme.colors.inkMuted)
+    Spacer(Modifier.height(18.dp))
+    Button(
+        text = when {
+            interrupted -> "Finish now"
+            one -> "Write them into the song"
+            else -> "Write them into the songs"
+        },
+        onClick = onMove,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(10.dp))
+    Button("Not now", onClick = onLater, kind = ButtonKind.Quiet, modifier = Modifier.fillMaxWidth())
 }
 
 /** The name of a field, above it. Always visible, so a filled-in field still says what it is. */

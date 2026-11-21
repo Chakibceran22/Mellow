@@ -53,6 +53,15 @@ sealed interface LibrarySheet {
 
     /** What should be changed about these songs: their names (one song) or their cover (any number)? */
     data class EditSongs(val trackIds: Set<String>) : LibrarySheet
+
+    /**
+     * Names and covers that Mellow has been keeping to itself can be written into their songs. Shall it?
+     *
+     * @property count how many songs have something waiting to be written.
+     * @property unfinished how many of those are songs a write to which was cut short,
+     *   which is a different thing to tell the user about.
+     */
+    data class MovePictures(val count: Int, val unfinished: Int = 0) : LibrarySheet
 }
 
 /**
@@ -62,23 +71,28 @@ sealed interface LibrarySheet {
  * @property asFiled the same songs as their files describe them, for showing what an edit
  *   changed and for putting it back.
  * @property albumMates for one song: how many other songs share its album.
+ * @property pictureFromMellow those of them whose cover was given to them in Mellow, in
+ *   the file or out of it, and so have an earlier picture to go back to.
+ * @property changedInMellow those of them that Mellow has changed in any way, names or cover.
  */
 @Immutable
 data class EditingSongs(
     val tracks: List<Track>,
     val asFiled: List<Track>,
     val albumMates: Int,
+    val pictureFromMellow: Set<String> = emptySet(),
+    val changedInMellow: Set<String> = emptySet(),
 ) {
     /** The song, when there is exactly one. */
     val single: Track? = tracks.singleOrNull()
 
     private val filedById = asFiled.associateBy(Track::id)
 
-    /** True if any of them wears a picture chosen in Mellow instead of its album's cover. */
-    val anyOwnPicture: Boolean = tracks.any { track -> filedById[track.id]?.let { it.artwork != track.artwork } == true }
+    /** True if any of them wears a picture chosen in Mellow instead of the one it came with. */
+    val anyOwnPicture: Boolean = tracks.any { it.id in pictureFromMellow }
 
-    /** True if anything at all about any of them has been edited. */
-    val anyEdited: Boolean = tracks.any { track -> filedById[track.id]?.let { it != track } == true }
+    /** True if anything at all about any of them has been changed in Mellow, and so can be undone. */
+    val anyEdited: Boolean = tracks.any { it.id in changedInMellow }
 
     /** The albums they come from, each once. */
     val albums: List<String> = tracks.map(Track::album).distinct()

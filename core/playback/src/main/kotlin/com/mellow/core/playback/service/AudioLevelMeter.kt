@@ -27,6 +27,7 @@ internal object AudioLevelMeter : TeeAudioProcessor.AudioBufferSink {
 
     override fun flush(sampleRateHz: Int, channelCount: Int, encoding: Int) {
         this.encoding = encoding
+        AudioSpectrum.reset(sampleRateHz, channelCount)
     }
 
     override fun handleBuffer(buffer: ByteBuffer) {
@@ -48,6 +49,9 @@ internal object AudioLevelMeter : TeeAudioProcessor.AudioBufferSink {
         }
         level = sqrt(sum / read).toFloat()
         measuredAt = SystemClock.elapsedRealtime()
+
+        // The same samples, taken apart by pitch, for whoever is watching the spectrum.
+        AudioSpectrum.listen(samples)
     }
 
     /** The latest level, or silence once buffers have stopped arriving (paused or ended). */

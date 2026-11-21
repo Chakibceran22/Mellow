@@ -56,6 +56,20 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
+        // The app to try things out on. It is the release build in every way that can be
+        // felt (shrunk, optimised, not debuggable), but to a phone it is a different app:
+        // its own package name, so it sits next to the real one with its own playlists
+        // and settings, and the debug key that every Android toolchain already has, so
+        // nothing about it needs guarding. It can be replaced, broken or removed without
+        // the real app noticing. Install it with `./gradlew :app:installBeta`.
+        create("beta") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".beta"
+            versionNameSuffix = "-beta"
+            signingConfig = signingConfigs.getByName("debug")
+            // The other modules come only as debug and release. Take their release.
+            matchingFallbacks += "release"
+        }
     }
 
     buildFeatures {

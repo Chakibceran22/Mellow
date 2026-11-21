@@ -9,14 +9,17 @@ import com.mellow.core.model.Artwork
 import com.mellow.core.model.Track
 
 /**
- * What the user has changed about their songs: a different title, artist or album name,
- * or a cover of their own choosing.
+ * What the user has changed about their songs that Mellow keeps to itself: a different
+ * title, artist or album name, and sometimes a cover.
  *
- * None of this is written into the audio files. A music file's tags belong to the file,
- * and Android does not let an app rewrite them without asking the user file by file. The
- * changes are kept here instead, against the id the phone gives each track, and laid over
- * what the file says every time a track is read. To the rest of the app an edited track
- * simply is what the user said it is.
+ * These are held here, against the id the phone gives each track, and laid over what the
+ * file says every time a track is read. To the rest of the app an edited track simply is
+ * what the user said it is.
+ *
+ * A cover is only kept here when it cannot be where it belongs, which is inside the song's
+ * own file (see [SongFiles]): on a version of Android that will not let an app write to
+ * music, for a kind of file a picture cannot be written into, or because it was chosen
+ * before Mellow wrote covers into files and has not been moved there yet.
  *
  * There are few of these compared with the size of a library, so all of them are held in
  * memory once read, and applying them to a page of tracks costs a lookup each.
