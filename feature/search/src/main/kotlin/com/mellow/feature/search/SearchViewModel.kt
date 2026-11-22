@@ -117,7 +117,7 @@ class SearchViewModel(
         }
         val tracks = (uiState.value as? SearchUiState.Results)?.tracks ?: return
         val index = tracks.indexOfFirst { it.id == trackId }
-        if (index >= 0) playback.play(tracks, index)
+        if (index >= 0) playback.play(tracks, index, sourceLabel = "what you searched for")
     }
 
     /** Same rule for albums: toggle if one of its tracks is on, otherwise play it from the top. */
@@ -132,7 +132,7 @@ class SearchViewModel(
         albumJob?.cancel()
         albumJob = viewModelScope.launch {
             val tracks = library.albumTracks(albumId)
-            if (tracks.isNotEmpty()) playback.play(tracks, source = source)
+            if (tracks.isNotEmpty()) playback.play(tracks, source = source, sourceLabel = tracks.first().album)
         }
     }
 

@@ -171,11 +171,11 @@ class LibraryViewModel(
             // A shuffle has to be of the whole playlist, so this is the one time all of
             // it is read: still only descriptions, and only when asked to play.
             current.shuffle -> viewModelScope.launch {
-                playback.play(playlists.tracks(id), startIndex = null, source = source)
+                playback.play(playlists.tracks(id), startIndex = null, source = source, sourceLabel = open.playlist.name)
             }
             // In order, what is loaded is enough to start; the player is told where the
             // rest comes from and fetches it as it gets there.
-            else -> playback.play(loaded, startIndex = 0, tail = restOf(id), source = source)
+            else -> playback.play(loaded, startIndex = 0, tail = restOf(id), source = source, sourceLabel = open.playlist.name)
         }
     }
 
@@ -189,7 +189,13 @@ class LibraryViewModel(
         val loaded = open.tracks.orEmpty()
         val index = loaded.indexOfFirst { it.id == trackId }
         if (index >= 0) {
-            playback.play(loaded, index, tail = restOf(open.playlist.id), source = QueueSource.playlist(open.playlist.id))
+            playback.play(
+                queue = loaded,
+                startIndex = index,
+                tail = restOf(open.playlist.id),
+                source = QueueSource.playlist(open.playlist.id),
+                sourceLabel = open.playlist.name,
+            )
         }
     }
 
@@ -218,6 +224,45 @@ class LibraryViewModel(
     /** Asks which playlist [trackIds] should go into. */
     fun askToAdd(trackIds: Set<String>) {
         if (trackIds.isNotEmpty()) sheet = LibrarySheet.AddTo(trackIds)
+    }
+
+    /** Opens the sheet of everything else that can be done with [trackIds]. */
+    fun askForMore(trackIds: Set<String>, inPlaylist: Boolean) {
+        if (trackIds.isNotEmpty()) sheet = LibrarySheet.More(trackIds, inPlaylist)
+    }
+
+    // ── The queue ───────────────────────────────────────────────────────────
+
+    /** Puts these songs at the front of the user's queue: the first plays as soon as the current song ends. */
+    fun playNext(trackIds: Set<String>) = queue(trackIds, atFront = true)
+
+    /** Puts these songs at the back of the user's queue. */
+    fun addToQueue(trackIds: Set<String>) = queue(trackIds, atFront = false)
+
+    private fun queue(trackIds: Set<String>, atFront: Boolean) {
+        if (trackIds.isEmpty()) return
+        viewModelScope.launch {
+            val found = library.tracksById(trackIds).associateBy(Track::id)
+            // In the order they were picked, which is the order they were asked to play in.
+            val tracks = trackIds.mapNotNull(found::get)
+            if (tracks.isEmpty()) {
+                say(if (trackIds.size == 1) "That song is no longer on this phone" else "Those songs are no longer on this phone", selectionUsed = true)
+                return@launch
+            }
+            val on = playback.state.value.trackId
+            // The song that is on cannot be queued behind itself, and is left out.
+            val joining = tracks.filter { it.id != on }
+            if (atFront) playback.playNext(tracks) else playback.addToQueue(tracks)
+            say(
+                message = when {
+                    on == null -> if (tracks.size == 1) "Playing ${tracks[0].title}" else "Playing ${songs(tracks.size)}"
+                    joining.isEmpty() -> "That song is already playing"
+                    atFront -> if (joining.size == 1) "${joining[0].title} plays next" else "${songs(joining.size)} play next"
+                    else -> if (joining.size == 1) "Added ${joining[0].title} to your queue" else "Added ${songs(joining.size)} to your queue"
+                },
+                selectionUsed = true,
+            )
+        }
     }
 
     fun askToRenameOpen() {
@@ -255,7 +300,8 @@ class LibraryViewModel(
             val mates = ordered.singleOrNull()?.let { library.albumTracks(it.albumId).size - 1 } ?: 0
             val fromMellow = library.changesFromMellow(trackIds)
             // Another question may have come up while these were read. It keeps the screen.
-            if (sheet != null) return@launch
+            // (The sheet of more things to do is where this one is asked for; it gives way.)
+            if (sheet != null && sheet !is LibrarySheet.More) return@launch
             editing = EditingSongs(ordered, filed, mates.coerceAtLeast(0), fromMellow.pictures, fromMellow.all)
             sheet = LibrarySheet.EditSongs(trackIds)
         }
@@ -308,6 +354,7 @@ class LibraryViewModel(
     /** Takes tracks out of the open playlist. Their files stay where they are. */
     fun removeFromOpen(trackIds: Set<String>) {
         val open = uiState.value.open ?: return
+        if (sheet is LibrarySheet.More) sheet = null
         viewModelScope.launch {
             playlists.remove(open.playlist.id, trackIds)
             say("Removed ${songs(trackIds.size)} from ${open.playlist.name}", selectionUsed = true)

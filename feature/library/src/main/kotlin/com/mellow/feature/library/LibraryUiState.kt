@@ -55,6 +55,15 @@ sealed interface LibrarySheet {
     data class EditSongs(val trackIds: Set<String>) : LibrarySheet
 
     /**
+     * The things that can be done with the selected songs that are not on the bar itself:
+     * the ones that change the songs, which deserve a moment's thought and a line saying
+     * what they do.
+     *
+     * @property inPlaylist true when the songs were picked inside a playlist, where they can be taken out of it.
+     */
+    data class More(val trackIds: Set<String>, val inPlaylist: Boolean) : LibrarySheet
+
+    /**
      * Names and covers that Mellow has been keeping to itself can be written into their songs. Shall it?
      *
      * @property count how many songs have something waiting to be written.

@@ -9,6 +9,8 @@ import com.adamglin.phosphoricons.bold.ArrowsClockwise
 import com.adamglin.phosphoricons.bold.CaretDown
 import com.adamglin.phosphoricons.bold.CaretLeft
 import com.adamglin.phosphoricons.bold.Check
+import com.adamglin.phosphoricons.bold.DotsSixVertical
+import com.adamglin.phosphoricons.bold.DotsThree
 import com.adamglin.phosphoricons.bold.FloppyDisk
 import com.adamglin.phosphoricons.bold.FolderOpen
 import com.adamglin.phosphoricons.bold.GearSix
@@ -18,8 +20,11 @@ import com.adamglin.phosphoricons.bold.MagnifyingGlass
 import com.adamglin.phosphoricons.bold.MinusCircle
 import com.adamglin.phosphoricons.bold.PencilSimple
 import com.adamglin.phosphoricons.bold.Plus
+import com.adamglin.phosphoricons.bold.Queue
 import com.adamglin.phosphoricons.bold.Repeat
 import com.adamglin.phosphoricons.bold.RepeatOnce
+import com.adamglin.phosphoricons.bold.RowsPlusBottom
+import com.adamglin.phosphoricons.bold.RowsPlusTop
 import com.adamglin.phosphoricons.bold.Shuffle
 import com.adamglin.phosphoricons.bold.Trash
 import com.adamglin.phosphoricons.bold.X
@@ -76,6 +81,21 @@ object MellowIcons {
 
     /** Leaves selection, or closes whatever is open. */
     val Close: ImageVector get() = PhosphorIcons.Bold.X
+
+    /** Put these at the front of what is coming: a row slipped in at the top. */
+    val PlayNext: ImageVector get() = PhosphorIcons.Bold.RowsPlusTop
+
+    /** Put these at the back of the queue: a row added underneath. */
+    val AddToQueue: ImageVector get() = PhosphorIcons.Bold.RowsPlusBottom
+
+    /** What is lined up to play. */
+    val Queue: ImageVector get() = PhosphorIcons.Bold.Queue
+
+    /** The rest of what can be done, kept in a sheet. */
+    val More: ImageVector get() = PhosphorIcons.Bold.DotsThree
+
+    /** Take hold here to move a row. */
+    val DragHandle: ImageVector get() = PhosphorIcons.Bold.DotsSixVertical
 
     val AddToPlaylist: ImageVector get() = PhosphorIcons.Bold.ListPlus
 

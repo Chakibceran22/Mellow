@@ -200,6 +200,7 @@ class HomeViewModel(
                 startIndex = index,
                 tail = { already -> library.tracks(offset = already, limit = TrackPage) },
                 source = QueueSource.Library,
+                sourceLabel = "all your songs",
             )
         }
     }
@@ -214,7 +215,7 @@ class HomeViewModel(
         }
         viewModelScope.launch {
             val albumTracks = library.albumTracks(albumId)
-            if (albumTracks.isNotEmpty()) playback.play(albumTracks, source = source)
+            if (albumTracks.isNotEmpty()) playback.play(albumTracks, source = source, sourceLabel = albumTracks.first().album)
         }
     }
 
@@ -229,10 +230,11 @@ class HomeViewModel(
             playback.togglePlayPause()
             return
         }
+        val name = shelfPlaylists.value?.firstOrNull { it.id == playlistId }?.name
         viewModelScope.launch {
             if (current.shuffle) {
                 val all = playlists.tracks(playlistId)
-                if (all.isNotEmpty()) playback.play(all, startIndex = null, source = source)
+                if (all.isNotEmpty()) playback.play(all, startIndex = null, source = source, sourceLabel = name)
             } else {
                 val first = playlists.tracks(playlistId, offset = 0, limit = TrackPage)
                 if (first.isNotEmpty()) {
@@ -241,6 +243,7 @@ class HomeViewModel(
                         startIndex = 0,
                         tail = { already -> playlists.tracks(playlistId, offset = already, limit = TrackPage) },
                         source = source,
+                        sourceLabel = name,
                     )
                 }
             }

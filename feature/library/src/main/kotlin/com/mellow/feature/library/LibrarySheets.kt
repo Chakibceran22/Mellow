@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -69,9 +70,12 @@ import com.mellow.feature.library.component.LibraryDimens
  * Home and Search as much as from here). Call it last in the content layer of the app's
  * `GlassScene`, so it is drawn over the rest. The system back button is the shell's to
  * route: it should call [LibraryViewModel.dismissSheet] while [LibraryViewModel.sheet] is set.
+ *
+ * @param onDeleteFromPhone the user chose to delete these songs' files. Android has to be
+ *   asked about that by an activity, so it is the shell's to do.
  */
 @Composable
-fun BoxScope.LibrarySheets(viewModel: LibraryViewModel) {
+fun BoxScope.LibrarySheets(viewModel: LibraryViewModel, onDeleteFromPhone: (Set<String>) -> Unit = {}) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val sheet = viewModel.sheet
 
@@ -132,6 +136,18 @@ fun BoxScope.LibrarySheets(viewModel: LibraryViewModel) {
                     pickPicture.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 },
                 onTrack = viewModel::useTrackCover,
+            )
+
+            is LibrarySheet.More -> MoreActions(
+                count = shown.trackIds.size,
+                inPlaylist = shown.inPlaylist,
+                canDelete = viewModel.canDeleteFiles,
+                onEdit = { viewModel.askToEdit(shown.trackIds) },
+                onRemove = { viewModel.removeFromOpen(shown.trackIds) },
+                onDelete = {
+                    viewModel.dismissSheet()
+                    onDeleteFromPhone(shown.trackIds)
+                },
             )
 
             is LibrarySheet.MovePictures -> MovePictures(
@@ -566,9 +582,51 @@ private fun ChooseCover(
     }
 }
 
+/**
+ * The things to do with the selected songs that change the songs themselves. They are
+ * kept off the bar, one to a row here, each with a line saying what it will do: these are
+ * not for doing by a slip of the thumb.
+ */
+@Composable
+private fun MoreActions(
+    count: Int,
+    inPlaylist: Boolean,
+    canDelete: Boolean,
+    onEdit: () -> Unit,
+    onRemove: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val one = count == 1
+    SheetTitle(if (one) "This song" else "These $count songs")
+    Spacer(Modifier.height(10.dp))
+    SheetRow(
+        onClick = onEdit,
+        leading = { IconTile(MellowIcons.Rename) },
+        title = "Edit",
+        subtitle = if (one) "Change its name and its cover" else "Give them all one cover",
+    )
+    if (inPlaylist) {
+        SheetRow(
+            onClick = onRemove,
+            leading = { IconTile(MellowIcons.RemoveFromPlaylist) },
+            title = "Remove from this playlist",
+            subtitle = if (one) "The song stays on the phone" else "The songs stay on the phone",
+        )
+    }
+    if (canDelete) {
+        SheetRow(
+            onClick = onDelete,
+            leading = { IconTile(MellowIcons.Delete, tint = MellowTheme.colors.danger) },
+            title = "Delete from phone",
+            subtitle = if (one) "The file is removed for good" else "The files are removed for good",
+            titleColor = MellowTheme.colors.danger,
+        )
+    }
+}
+
 /** The square at the start of a sheet row when it stands for an action rather than a thing. */
 @Composable
-private fun IconTile(icon: ImageVector) {
+private fun IconTile(icon: ImageVector, tint: Color = MellowTheme.colors.accent) {
     val colors = MellowTheme.colors
     val tile = remember { ContinuousCornerShape(LibraryDimens.SheetCoverRadius) }
     Box(
@@ -577,7 +635,7 @@ private fun IconTile(icon: ImageVector) {
             .drawBehind { drawOutline(tile.createOutline(size, layoutDirection, this), colors.wash) },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = colors.accent, size = 22.dp)
+        Icon(icon, contentDescription = null, tint = tint, size = 22.dp)
     }
 }
 
@@ -603,6 +661,7 @@ private fun SheetRow(
     title: String,
     subtitle: String?,
     chosen: Boolean = false,
+    titleColor: Color = MellowTheme.colors.ink,
 ) {
     Row(
         modifier = Modifier
@@ -614,7 +673,7 @@ private fun SheetRow(
         leading()
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, style = MellowTheme.type.headline, maxLines = 1)
+            Text(title, style = MellowTheme.type.headline, color = titleColor, maxLines = 1)
             if (subtitle != null) {
                 Text(subtitle, style = MellowTheme.type.caption, color = MellowTheme.colors.inkMuted, maxLines = 1)
             }

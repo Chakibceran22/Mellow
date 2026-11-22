@@ -1,11 +1,15 @@
 package com.mellow.feature.player
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mellow.core.playback.PlaybackController
+import com.mellow.core.playback.UpNext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -40,6 +44,34 @@ class PlayerViewModel(
 
     /** Milliseconds into the current track. Collect only while it is on screen. */
     val position: Flow<Long> = playback.position
+
+    /** What plays after the current track: the user's own queue, then the rest of what was put on. */
+    val upNext: StateFlow<UpNext> = playback.upNext
+
+    /**
+     * Whether the sheet of what is coming up is open. Compose state rather than a flow,
+     * like the Library's sheets, and kept here so the shell's back button can close it.
+     */
+    var upNextOpen: Boolean by mutableStateOf(false)
+        private set
+
+    fun showUpNext() {
+        upNextOpen = true
+    }
+
+    fun hideUpNext() {
+        upNextOpen = false
+    }
+
+    /** A row of the queue was dropped in a new place. Positions count from 0 at the front of the queue. */
+    fun moveQueued(from: Int, to: Int) = playback.moveQueued(from, to)
+
+    fun removeQueued(key: String) = playback.removeQueued(key)
+
+    fun clearQueued() = playback.clearQueued()
+
+    /** Plays a song from the line-up now. */
+    fun playQueued(key: String) = playback.skipTo(key)
 
     fun togglePlayPause() = playback.togglePlayPause()
 

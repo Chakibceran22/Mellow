@@ -35,7 +35,35 @@ object QueueSource {
     fun album(albumId: String) = "album:$albumId"
 
     fun playlist(playlistId: String) = "playlist:$playlistId"
+
+    /** Nothing was playing and the user queued some songs: the queue is all there is. */
+    const val Queue = "queue"
 }
+
+/**
+ * One song that is waiting to play.
+ *
+ * @property key a name for this place in line that stays the same while the song waits,
+ *   however the line is reordered around it. The same song queued twice has two keys.
+ */
+data class QueuedTrack(val key: String, val track: Track)
+
+/**
+ * What plays after the track that is on.
+ *
+ * @property queued the user's own queue: songs they asked for with "play next" or "add to
+ *   queue", in the order they will play. These come first.
+ * @property then the first of what follows the user's queue: the rest of the album,
+ *   playlist or list that was put on, in the order it will play (shuffled, if shuffle is on).
+ * @property more how many more there are after [then] that are not listed.
+ * @property from what [then] is the rest of, in a few words ("Night Bus"), when that is known.
+ */
+data class UpNext(
+    val queued: List<QueuedTrack> = emptyList(),
+    val then: List<QueuedTrack> = emptyList(),
+    val more: Int = 0,
+    val from: String? = null,
+)
 
 /** How many bands [PlaybackController.audioSpectrum] divides the sound into. */
 const val SpectrumBands = 24
@@ -58,6 +86,9 @@ interface PlaybackController {
 
     /** Position in the current track, in milliseconds, sampled for as long as it is collected. */
     val position: Flow<Long>
+
+    /** What is lined up after the current track. */
+    val upNext: StateFlow<UpNext>
 
     /** How loud the audio leaving the player is at this moment, 0..1. Cheap enough to call every frame. */
     fun audioLevel(): Float
@@ -88,10 +119,41 @@ interface PlaybackController {
      * it for more as it nears the end of what it has, so the whole list plays through
      * without ever being read in one go.
      *
+     * Whatever the user has queued themselves stays queued: it plays after the track this
+     * starts on, and the new list carries on after that.
+     *
      * @param source the list this queue comes from, as a [QueueSource] name. It is handed
      *   back in [PlaybackState.source] for as long as this queue plays.
+     * @param sourceLabel what that list is called, for showing what is coming up ("Night Bus").
      */
-    fun play(queue: List<Track>, startIndex: Int? = 0, tail: QueueTail? = null, source: String? = null)
+    fun play(queue: List<Track>, startIndex: Int? = 0, tail: QueueTail? = null, source: String? = null, sourceLabel: String? = null)
+
+    /**
+     * Puts these tracks at the front of the user's queue, in this order: the first of them
+     * plays as soon as the current track ends. With nothing on, they start playing.
+     *
+     * A track that is already coming up is moved here rather than played twice, and the
+     * track that is on is left out: it cannot follow itself.
+     */
+    fun playNext(tracks: List<Track>)
+
+    /** The same, at the back of the user's queue: after everything they have already queued. */
+    fun addToQueue(tracks: List<Track>)
+
+    /** Moves a track within the user's queue. Positions count from 0 at the front of [UpNext.queued]. */
+    fun moveQueued(from: Int, to: Int)
+
+    /** Takes one track out of the user's queue. */
+    fun removeQueued(key: String)
+
+    /** Empties the user's queue. What was playing carries on, with what followed it. */
+    fun clearQueued()
+
+    /**
+     * Plays one of the tracks in [upNext] now. The rest of the user's queue is not lost by
+     * it: whatever of it was still waiting plays after this track.
+     */
+    fun skipTo(key: String)
 
     /** Takes these tracks out of the queue, moving on if one of them is playing. For files that no longer exist. */
     fun removeFromQueue(trackIds: Set<String>)

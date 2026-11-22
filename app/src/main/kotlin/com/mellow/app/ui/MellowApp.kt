@@ -188,9 +188,9 @@ fun MellowApp(container: AppContainer) {
         }
     }
 
-    fun deleteSelectedFiles() {
-        val request = libraryViewModel.deleteFilesRequest(selection.keys) ?: return
-        deleting = ArrayList(selection.keys)
+    fun deleteFiles(trackIds: Set<String>) {
+        val request = libraryViewModel.deleteFilesRequest(trackIds) ?: return
+        deleting = ArrayList(trackIds)
         confirmDeletion.launch(IntentSenderRequest.Builder(request).build())
     }
 
@@ -221,6 +221,8 @@ fun MellowApp(container: AppContainer) {
     ) {
         when {
             libraryViewModel.sheet != null -> libraryViewModel.dismissSheet()
+            // The sheet of what is coming up sits on the open player, so it goes first.
+            sheetOpen && playerViewModel.upNextOpen -> playerViewModel.hideUpNext()
             sheetOpen -> moveSheet(0f)
             selection.active -> selection.clear()
             settingsOpen -> settingsOpen = false
@@ -383,44 +385,53 @@ fun MellowApp(container: AppContainer) {
                     title = if (lastCount.value == 1) "1 song selected" else "${lastCount.value} songs selected",
                     // Only what makes sense here: taking songs out of a playlist is offered
                     // inside that playlist, and deleting files where Android allows asking.
+                    // Kept to four, each one word: what to do with the songs (play them
+                    // next, queue them, put them in a playlist) one tap away, and what
+                    // changes the songs themselves a tap further, in a sheet that says
+                    // what each thing does.
                     actions = buildList {
                         val inPlaylist = onLibraryPage && library.open != null
-                        // Four cells are narrow; the labels shorten and the icons carry it.
-                        val crowded = inPlaylist && libraryViewModel.canDeleteFiles
+                        add(
+                            BarAction(
+                                icon = MellowIcons.PlayNext,
+                                label = "Play next",
+                                onClick = { libraryViewModel.playNext(selection.keys) },
+                            ),
+                        )
+                        add(
+                            BarAction(
+                                icon = MellowIcons.AddToQueue,
+                                label = "Queue",
+                                onClick = { libraryViewModel.addToQueue(selection.keys) },
+                                description = "Add to queue",
+                            ),
+                        )
                         add(
                             BarAction(
                                 icon = MellowIcons.AddToPlaylist,
-                                label = if (crowded) "Add" else "Add to playlist",
+                                label = "Playlist",
                                 onClick = { libraryViewModel.askToAdd(selection.keys) },
                                 description = "Add to playlist",
                             ),
                         )
-                        add(
-                            BarAction(
-                                icon = MellowIcons.Rename,
-                                label = "Edit",
-                                onClick = { libraryViewModel.askToEdit(selection.keys) },
-                                description = if (selection.count == 1) "Edit this song's name and cover" else "Change the cover of these songs",
-                            ),
-                        )
-                        if (inPlaylist) {
+                        // Editing is always possible. If it is the only other thing here,
+                        // a sheet for it alone would be a tap for nothing.
+                        if (inPlaylist || libraryViewModel.canDeleteFiles) {
                             add(
                                 BarAction(
-                                    icon = MellowIcons.RemoveFromPlaylist,
-                                    label = "Remove",
-                                    onClick = { libraryViewModel.removeFromOpen(selection.keys) },
-                                    description = "Remove from this playlist",
+                                    icon = MellowIcons.More,
+                                    label = "More",
+                                    onClick = { libraryViewModel.askForMore(selection.keys, inPlaylist) },
+                                    description = "More to do with these songs",
                                 ),
                             )
-                        }
-                        if (libraryViewModel.canDeleteFiles) {
+                        } else {
                             add(
                                 BarAction(
-                                    icon = MellowIcons.Delete,
-                                    label = if (crowded) "Delete" else "Delete from phone",
-                                    onClick = ::deleteSelectedFiles,
-                                    description = "Delete from phone",
-                                    destructive = true,
+                                    icon = MellowIcons.Rename,
+                                    label = "Edit",
+                                    onClick = { libraryViewModel.askToEdit(selection.keys) },
+                                    description = if (selection.count == 1) "Edit this song's name and cover" else "Change the cover of these songs",
                                 ),
                             )
                         }
@@ -443,7 +454,7 @@ fun MellowApp(container: AppContainer) {
             )
 
             // Last, so a sheet covers everything else that floats.
-            LibrarySheets(libraryViewModel)
+            LibrarySheets(libraryViewModel, onDeleteFromPhone = ::deleteFiles)
         }
 
         // Built as soon as there is a track and parked below the screen, so opening it

@@ -1,6 +1,7 @@
 package com.mellow.feature.player
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,7 +10,10 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,6 +46,7 @@ import com.mellow.core.model.Track
 import com.mellow.feature.player.component.Spectrum
 import com.mellow.feature.player.component.TrackSwipe
 import com.mellow.feature.player.component.TrackSwipeState
+import com.mellow.feature.player.component.UpNextSheet
 import com.mellow.feature.player.component.Transport
 import kotlinx.coroutines.delay
 
@@ -51,6 +56,8 @@ import kotlinx.coroutines.delay
  *
  * The song itself, cover and name, can be pushed aside to skip: left for the next track,
  * right for the one before. Between it and the controls the sound is drawn as it plays.
+ * A button at the top opens the sheet of what is coming up, where the user's own queue is
+ * arranged.
  *
  * It is meant to stay composed while a track is loaded, parked off screen, so that opening
  * it is a slide and not a build.
@@ -65,13 +72,42 @@ fun NowPlayingScreen(
     onCollapse: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val upNext by viewModel.upNext.collectAsStateWithLifecycle()
+    // The sheet belongs to the open player. Put away, the player takes the sheet with it.
+    LaunchedEffect(visible) {
+        if (!visible) viewModel.hideUpNext()
+    }
+
+    // The whole player is the backdrop of one more scene, so that the sheet of what is
+    // coming up can be real glass over all of it: cover, words and controls show through
+    // it frosted. Nothing is frosted while the sheet is away.
+    GlassScene(
+        modifier = modifier.fillMaxSize(),
+        active = visible,
+        backdrop = { Player(viewModel, visible, queued = upNext.queued.size, onCollapse = onCollapse) },
+    ) {
+        UpNextSheet(
+            visible = viewModel.upNextOpen,
+            upNext = upNext,
+            onDismiss = viewModel::hideUpNext,
+            onMove = viewModel::moveQueued,
+            onRemove = viewModel::removeQueued,
+            onClear = viewModel::clearQueued,
+            onPlay = viewModel::playQueued,
+        )
+    }
+}
+
+/** The player itself: everything but the sheet that rises over it. */
+@Composable
+private fun Player(viewModel: PlayerViewModel, visible: Boolean, queued: Int, onCollapse: () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val positionMs by produceState(initialValue = 0L, visible, viewModel) {
         if (visible) viewModel.position.collect { value = it }
     }
 
     GlassScene(
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         // Nothing but the lit room is behind the glass here, so there is nothing to bend.
         refract = false,
         active = visible,
@@ -85,7 +121,7 @@ fun NowPlayingScreen(
                 .systemBarsPadding()
                 .padding(horizontal = 24.dp),
         ) {
-            TopBar(track.album, onCollapse)
+            TopBar(track.album, queued, onCollapse, onShowUpNext = viewModel::showUpNext)
             TrackSwipe(
                 track = track,
                 state = swipe,
@@ -128,8 +164,12 @@ fun NowPlayingScreen(
     }
 }
 
+/**
+ * @param queued how many songs the user has waiting in their queue. Any at all, and the
+ *   button that opens it carries a small mark saying so.
+ */
 @Composable
-private fun TopBar(albumTitle: String, onCollapse: () -> Unit) {
+private fun TopBar(albumTitle: String, queued: Int, onCollapse: () -> Unit, onShowUpNext: () -> Unit) {
     Box(Modifier.fillMaxWidth().padding(top = 8.dp).height(52.dp)) {
         GlassIconButton(
             icon = MellowIcons.Collapse,
@@ -137,6 +177,26 @@ private fun TopBar(albumTitle: String, onCollapse: () -> Unit) {
             onClick = onCollapse,
             modifier = Modifier.align(Alignment.CenterStart),
         )
+        Box(Modifier.align(Alignment.CenterEnd)) {
+            GlassIconButton(
+                icon = MellowIcons.Queue,
+                contentDescription = when (queued) {
+                    0 -> "Up next"
+                    1 -> "Up next, 1 song in your queue"
+                    else -> "Up next, $queued songs in your queue"
+                },
+                onClick = onShowUpNext,
+            )
+            if (queued > 0) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = (-3).dp, y = 3.dp)
+                        .size(10.dp)
+                        .background(MellowTheme.colors.accent, CircleShape),
+                )
+            }
+        }
         // Kept clear of the button on the left, and of the same space on the right so it stays centred.
         Column(
             modifier = Modifier.align(Alignment.Center).padding(horizontal = 58.dp),
