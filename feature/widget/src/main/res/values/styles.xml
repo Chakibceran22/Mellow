@@ -1,5 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- The look of a widget. Every colour in a widget's layouts is asked of one of these,
+         set as the theme of the layout's outermost view.
+
+         WidgetTone follows the phone: its colours are the ones that differ between
+         values and values-night, and the launcher picks between those by itself, so a
+         widget changes with the phone without being redrawn.
+
+         WidgetTone.Light and WidgetTone.Dark are held to one look whatever the phone is
+         in, for when the user has chosen one in the app's settings. -->
+    <style name="WidgetTone">
+        <item name="widgetGlass">@color/widget_glass</item>
+        <item name="widgetShine">@color/widget_shine</item>
+        <item name="widgetEdge">@color/widget_edge</item>
+        <item name="widgetInk">@color/widget_ink</item>
+        <item name="widgetInkMuted">@color/widget_ink_muted</item>
+        <item name="widgetAccent">@color/widget_accent</item>
+        <item name="widgetAccentEdge">@color/widget_accent_edge</item>
+        <item name="widgetAccentShine">@color/widget_accent_shine</item>
+        <item name="widgetOnAccent">@color/widget_on_accent</item>
+        <item name="widgetPress">@color/widget_press</item>
+        <item name="widgetPressOnAccent">@color/widget_press_on_accent</item>
+    </style>
+
+    <style name="WidgetTone.Light">
+        <item name="widgetGlass">@color/widget_glass_light</item>
+        <item name="widgetShine">@color/widget_shine_light</item>
+        <item name="widgetEdge">@color/widget_edge_light</item>
+        <item name="widgetInk">@color/widget_ink_light</item>
+        <item name="widgetInkMuted">@color/widget_ink_muted_light</item>
+        <item name="widgetAccent">@color/widget_accent_light</item>
+        <item name="widgetAccentEdge">@color/widget_accent_edge_light</item>
+        <item name="widgetAccentShine">@color/widget_accent_shine_light</item>
+        <item name="widgetOnAccent">@color/widget_on_accent_light</item>
+        <item name="widgetPress">@color/widget_press_light</item>
+        <item name="widgetPressOnAccent">@color/widget_press_on_accent_light</item>
+    </style>
+
+    <style name="WidgetTone.Dark">
+        <item name="widgetGlass">@color/widget_glass_dark</item>
+        <item name="widgetShine">@color/widget_shine_dark</item>
+        <item name="widgetEdge">@color/widget_edge_dark</item>
+        <item name="widgetInk">@color/widget_ink_dark</item>
+        <item name="widgetInkMuted">@color/widget_ink_muted_dark</item>
+        <item name="widgetAccent">@color/widget_accent_dark</item>
+        <item name="widgetAccentEdge">@color/widget_accent_edge_dark</item>
+        <item name="widgetAccentShine">@color/widget_accent_shine_dark</item>
+        <item name="widgetOnAccent">@color/widget_on_accent_dark</item>
+        <item name="widgetPress">@color/widget_press_dark</item>
+        <item name="widgetPressOnAccent">@color/widget_press_on_accent_dark</item>
+    </style>
+
     <!-- Text is set in the phone's own typeface. A widget cannot carry a font of its own
          into the launcher, and the phone's is what every other widget beside it uses. -->
     <style name="WidgetText">
@@ -14,7 +65,7 @@
     <!-- The name of the song. -->
     <style name="WidgetText.Title">
         <item name="android:textSize">15sp</item>
-        <item name="android:textColor">@color/widget_ink</item>
+        <item name="android:textColor">?attr/widgetInk</item>
         <item name="android:fontFamily">sans-serif-medium</item>
     </style>
 
@@ -22,7 +73,7 @@
     <style name="WidgetText.Artist">
         <item name="android:layout_marginTop">3dp</item>
         <item name="android:textSize">13sp</item>
-        <item name="android:textColor">@color/widget_ink_muted</item>
+        <item name="android:textColor">?attr/widgetInkMuted</item>
     </style>
 
     <!-- Back and forward: an icon in a tall, narrow place to press. -->
@@ -31,15 +82,24 @@
         <item name="android:layout_height">match_parent</item>
         <item name="android:background">@drawable/widget_press</item>
         <item name="android:scaleType">center</item>
-        <item name="android:tint">@color/widget_ink</item>
+        <item name="android:tint">?attr/widgetInk</item>
     </style>
 
-    <!-- The icon on the play button: a disc in the accent colour. -->
+    <!-- The play button's glass. Its body is the background; the picture laid in it is the
+         light on its rim (WidgetGlass), coloured here so that it follows the phone's theme. -->
     <style name="WidgetDisc">
         <item name="android:layout_gravity">center</item>
         <item name="android:background">@drawable/widget_disc</item>
+        <item name="android:scaleType">fitXY</item>
+        <item name="android:tint">?attr/widgetAccentShine</item>
+        <item name="android:importantForAccessibility">no</item>
+    </style>
+
+    <!-- The icon on it. -->
+    <style name="WidgetDiscIcon">
+        <item name="android:layout_gravity">center</item>
         <item name="android:scaleType">center</item>
-        <item name="android:tint">@color/widget_on_accent</item>
+        <item name="android:tint">?attr/widgetOnAccent</item>
         <item name="android:importantForAccessibility">no</item>
     </style>
 </resources>

@@ -20,6 +20,6 @@ class MellowApplication : Application(), WidgetHost {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
-        widgets = MellowWidgets(this, container.playback).also(MellowWidgets::start)
+        widgets = MellowWidgets(this, container.playback, container.appearance.appearance).also(MellowWidgets::start)
     }
 }

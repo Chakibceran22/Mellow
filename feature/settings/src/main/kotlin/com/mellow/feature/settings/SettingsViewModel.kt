@@ -5,10 +5,12 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.mellow.core.data.AppearanceRepository
 import com.mellow.core.data.ExportOutcome
 import com.mellow.core.data.ImportOutcome
 import com.mellow.core.data.LibraryRepository
 import com.mellow.core.data.PlaylistRepository
+import com.mellow.core.model.Appearance
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,15 +23,16 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 /**
- * Settings has one job so far: keeping what lives only inside the app safe across a
- * reinstall. That is the playlists and whatever the user has edited about their songs.
- * Removing the app removes them; a backup file, saved wherever the user likes, brings
- * them back.
+ * Settings has two jobs. One is the app's look: light, dark, or whichever the phone is
+ * in. The other is keeping what lives only inside the app safe across a reinstall. That
+ * is the playlists and whatever the user has edited about their songs. Removing the app
+ * removes them; a backup file, saved wherever the user likes, brings them back.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModel(
     private val library: LibraryRepository,
     private val playlists: PlaylistRepository,
+    private val appearance: AppearanceRepository,
 ) : ViewModel() {
 
     private val progress = MutableStateFlow(Progress())
@@ -38,14 +41,18 @@ class SettingsViewModel(
     private val contents = combine(playlists.revision, library.revision) { _, _ -> }.mapLatest { playlists.backupContents() }
 
     val uiState: StateFlow<SettingsUiState> =
-        combine(contents, progress) { contents, progress ->
+        combine(contents, progress, appearance.appearance) { contents, progress, appearance ->
             SettingsUiState(
+                appearance = appearance,
                 playlistCount = contents.playlists,
                 editedSongCount = contents.songs,
                 working = progress.working,
                 result = progress.result,
             )
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState(appearance = appearance.appearance.value))
+
+    /** The user picked a look. It takes effect at once, on the app and on its widgets. */
+    fun chooseAppearance(chosen: Appearance) = appearance.choose(chosen)
 
     /** What to offer as the backup's name. Dated, so two backups in one folder can be told apart. */
     fun backupFileName(): String = "Mellow backup ${LocalDate.now()}.json"
@@ -120,7 +127,7 @@ class SettingsViewModel(
         private const val NeedsAccess =
             "Mellow has to read your music to match songs to the backup. Allow access to music on Home, then try again."
 
-        fun factory(library: LibraryRepository, playlists: PlaylistRepository): ViewModelProvider.Factory =
-            viewModelFactory { initializer { SettingsViewModel(library, playlists) } }
+        fun factory(library: LibraryRepository, playlists: PlaylistRepository, appearance: AppearanceRepository): ViewModelProvider.Factory =
+            viewModelFactory { initializer { SettingsViewModel(library, playlists, appearance) } }
     }
 }

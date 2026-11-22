@@ -1,13 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The play button: accent glass, as the main button on a screen of the app is. -->
+<!-- The body of the play button: accent glass, as the main button on a screen of the app
+     is. A see-through green and a faint edge; the light on it is a picture laid in the
+     same view (WidgetGlass). -->
 <ripple xmlns:android="http://schemas.android.com/apk/res/android"
-    android:color="@color/widget_press_on_accent">
+    android:color="?attr/widgetPressOnAccent">
     <item>
         <shape android:shape="oval">
-            <solid android:color="@color/widget_accent" />
+            <solid android:color="?attr/widgetAccent" />
             <stroke
                 android:width="1dp"
-                android:color="@color/widget_accent_edge" />
+                android:color="?attr/widgetAccentEdge" />
         </shape>
     </item>
 </ripple>

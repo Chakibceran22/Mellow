@@ -43,15 +43,16 @@ internal class WidgetGlass {
      *
      * @param density pixels per dp at the scale the picture is being made at, for the
      *   parts of the recipe that are given in dp.
+     * @param recipe which glass it is: the pane, or the button on it.
      */
-    fun light(width: Int, height: Int, radius: Float, density: Float): Bitmap {
-        val key = "$width|$height|$radius|$density"
+    fun light(width: Int, height: Int, radius: Float, density: Float, recipe: Recipe = Recipe.Pane): Bitmap {
+        val key = "$width|$height|$radius|$density|$recipe"
         kept[key]?.let { return it }
 
         val halfWidth = width / 2f
         val halfHeight = height / 2f
         val corner = min(radius, min(halfWidth, halfHeight))
-        val bezel = min(BezelDp * density, min(halfWidth, halfHeight))
+        val bezel = min(recipe.bezelDp * density, min(halfWidth, halfHeight))
         val hairline = HairlineDp * density
 
         // The lamp, a short way off in the direction the key light comes from, and the
@@ -127,7 +128,7 @@ internal class WidgetGlass {
                 val facing2 = facing * facing
                 val facing4 = facing2 * facing2
                 val facing8 = facing4 * facing4
-                val sheen = facing8 * facing8 * curve * Sheen
+                val sheen = facing8 * facing8 * curve * recipe.sheen
 
                 // The shape's own edge, softened over a pixel.
                 val inside = (0.5f - distance).coerceIn(0f, 1f)
@@ -141,23 +142,33 @@ internal class WidgetGlass {
         return bitmap
     }
 
-    private companion object {
-        const val Kept = 6
+    /**
+     * The parts of a glass's recipe that change how its light falls, copied from the
+     * design system's GlassStyle. Keep in step with it.
+     *
+     * @property bezelDp the width of the curved rim. On something as small as a button
+     *   the rim is most of it, which is what makes a button look like a bead of glass.
+     * @property sheen how strong the sheen is beside the line of light (sheen over rim).
+     */
+    enum class Recipe(val bezelDp: Float, val sheen: Float) {
+        /** Regular glass: the widget itself. */
+        Pane(bezelDp = 18f, sheen = 0.38f),
 
-        // The recipe, copied from the design system. Keep in step with it.
+        /** Accent glass: the play button, as the main button on a screen of the app. */
+        Button(bezelDp = 16f, sheen = 0.56f),
+    }
+
+    private companion object {
+        const val Kept = 8
+
+        // The rest of the recipe, the same for every glass. Copied from the design system too.
 
         /** Where the lighting engine rests the key light (LightingEngine): up and to the left, towards the eye. */
         const val KeyX = -0.46f
         const val KeyY = -0.52f
         const val KeyZ = 0.70f
 
-        /** The width of the curved rim of regular glass (GlassStyle.bezel). */
-        const val BezelDp = 18f
-
         /** How wide the line of light is (GlassPainter). */
         const val HairlineDp = 1.25f
-
-        /** How strong the sheen is beside the line of light (GlassStyle: sheen over rim). */
-        const val Sheen = 0.38f
     }
 }

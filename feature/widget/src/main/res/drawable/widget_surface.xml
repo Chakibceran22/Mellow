@@ -5,9 +5,9 @@
      does to what is behind it: Android shows a widget nothing of what it sits on. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="@color/widget_glass" />
+    <solid android:color="?attr/widgetGlass" />
     <corners android:radius="@dimen/widget_radius" />
     <stroke
         android:width="1dp"
-        android:color="@color/widget_edge" />
+        android:color="?attr/widgetEdge" />
 </shape>

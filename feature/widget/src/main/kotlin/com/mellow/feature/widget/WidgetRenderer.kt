@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.util.Size
 import android.view.View
 import android.widget.RemoteViews
+import com.mellow.core.model.Appearance
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -42,7 +43,8 @@ internal data class Shown(
  * between them and say how sharp a picture to make.
  *
  * Every one of them is a pane of glass: a see-through tint (the layouts' background) with
- * the light of the app's glass on its rim ([WidgetGlass]).
+ * the light of the app's glass on its rim ([WidgetGlass]). It is pale glass or dark glass
+ * with the phone's theme, unless the user has chosen one of the two for the app.
  *
  * Blocking, and reads files. Call it off the main thread, one call at a time.
  */
@@ -53,12 +55,17 @@ internal class WidgetRenderer(context: Context) {
     private val glass = WidgetGlass()
     private val intents = Intents()
 
+    /** The look of the widget being described. Set at the start of each [render]. */
+    private var tone = Appearance.Automatic
+
     /**
      * @param shown what is on, or null when there is nothing to play.
+     * @param appearance the look the user has chosen for the app. A widget wears it too.
      * @param options what the launcher says about this widget, its size above all.
      * @param fallback the size to assume when the launcher says nothing, in dp.
      */
-    fun render(shown: Shown?, options: Bundle, fallback: Size): RemoteViews {
+    fun render(shown: Shown?, appearance: Appearance, options: Bundle, fallback: Size): RemoteViews {
+        tone = appearance
         // The launcher gives a range: the widget is narrowest and tallest with the phone
         // upright, widest and shortest on its side.
         val upright = size(options, AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT) ?: fallback
@@ -158,14 +165,14 @@ internal class WidgetRenderer(context: Context) {
     private fun nothing(size: Size): RemoteViews {
         // With more than a row to itself, the mark goes above the words and both sit in the middle.
         val stacked = size.height >= TallFrom
-        return RemoteViews(context.packageName, if (stacked) R.layout.widget_empty_stacked else R.layout.widget_empty).apply {
+        return RemoteViews(context.packageName, if (stacked) Layout.EmptyStacked.inTone() else Layout.Empty.inTone()).apply {
             light(size)
             setOnClickPendingIntent(android.R.id.background, intents.app)
         }
     }
 
     private fun views(plan: Plan, shown: Shown, size: Size): RemoteViews = when (plan) {
-        is Plan.Bar -> RemoteViews(context.packageName, R.layout.widget_bar).apply {
+        is Plan.Bar -> RemoteViews(context.packageName, Layout.Bar.inTone()).apply {
             light(size)
             if (plan.cover > 0) setImageViewBitmap(R.id.widget_cover, covers.picture(shown.artworkUri, plan.cover, plan.cover, plan.radius))
             setViewVisibility(R.id.widget_cover, visibleIf(plan.cover > 0))
@@ -174,14 +181,14 @@ internal class WidgetRenderer(context: Context) {
             buttons(shown, plan.previous, plan.next)
         }
 
-        is Plan.Card -> RemoteViews(context.packageName, R.layout.widget_card).apply {
+        is Plan.Card -> RemoteViews(context.packageName, Layout.Card.inTone()).apply {
             light(size)
             setImageViewBitmap(R.id.widget_cover, covers.picture(shown.artworkUri, plan.cover, plan.cover, plan.radius))
             song(shown, words = true)
             buttons(shown, plan.previous, next = true)
         }
 
-        is Plan.Cover -> RemoteViews(context.packageName, R.layout.widget_cover).apply {
+        is Plan.Cover -> RemoteViews(context.packageName, Layout.Cover.inTone()).apply {
             light(size)
             setImageViewBitmap(R.id.widget_cover, covers.picture(shown.artworkUri, plan.width, plan.height, plan.radius, bottomRadius = 0f))
             song(shown, plan.words)
@@ -209,6 +216,27 @@ internal class WidgetRenderer(context: Context) {
         )
     }
 
+    /**
+     * Each layout, in its three looks. The first follows the phone's theme by itself, and
+     * is what a widget is given while the app is set to do the same. The other two are
+     * the same layout held to one look, for when the user has chosen it: the launcher
+     * that draws a widget knows the phone's theme and nothing of this app's settings, so
+     * a look that differs from the phone's has to be asked for by name.
+     */
+    private enum class Layout(val followsPhone: Int, val light: Int, val dark: Int) {
+        Bar(R.layout.widget_bar, R.layout.widget_bar_light, R.layout.widget_bar_dark),
+        Card(R.layout.widget_card, R.layout.widget_card_light, R.layout.widget_card_dark),
+        Cover(R.layout.widget_cover, R.layout.widget_cover_light, R.layout.widget_cover_dark),
+        Empty(R.layout.widget_empty, R.layout.widget_empty_light, R.layout.widget_empty_dark),
+        EmptyStacked(R.layout.widget_empty_stacked, R.layout.widget_empty_stacked_light, R.layout.widget_empty_stacked_dark),
+    }
+
+    private fun Layout.inTone(): Int = when (tone) {
+        Appearance.Automatic -> followsPhone
+        Appearance.Light -> light
+        Appearance.Dark -> dark
+    }
+
     private fun RemoteViews.song(shown: Shown, words: Boolean) {
         setViewVisibility(R.id.widget_words, visibleIf(words))
         setTextViewText(R.id.widget_title, shown.title)
@@ -217,6 +245,9 @@ internal class WidgetRenderer(context: Context) {
     }
 
     private fun RemoteViews.buttons(shown: Shown, previous: Boolean, next: Boolean) {
+        // The play button is a bead of glass of its own, lit the same way as the pane it sits on.
+        val disc = (DiscSize * density).roundToInt()
+        setImageViewBitmap(R.id.widget_toggle_glass, glass.light(disc, disc, disc / 2f, density, WidgetGlass.Recipe.Button))
         setImageViewResource(R.id.widget_toggle_icon, if (shown.isPlaying) R.drawable.widget_pause else R.drawable.widget_play)
         setContentDescription(R.id.widget_toggle, context.getString(if (shown.isPlaying) R.string.widget_pause else R.string.widget_play))
         setOnClickPendingIntent(R.id.widget_toggle, intents.toggle)
@@ -285,6 +316,9 @@ internal class WidgetRenderer(context: Context) {
         const val MaxCardCover = 220
 
         const val ToggleWidth = 52
+
+        /** The play button's glass, inside the place to press. */
+        const val DiscSize = 40
         const val StepWidth = 44
         const val BarEndPadding = 6
         const val WordsMargin = 16

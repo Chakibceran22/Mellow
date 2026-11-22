@@ -120,7 +120,7 @@ fun MellowApp(container: AppContainer, playerAskedAt: Long = 0L) {
     val libraryViewModel: LibraryViewModel =
         viewModel(factory = LibraryViewModel.factory(container.library, container.playlists, container.playback))
     val searchViewModel: SearchViewModel = viewModel(factory = SearchViewModel.factory(container.library, container.playback))
-    val settingsViewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.factory(container.library, container.playlists))
+    val settingsViewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.factory(container.library, container.playlists, container.appearance))
     val playerViewModel: PlayerViewModel = viewModel(factory = PlayerViewModel.factory(container.playback))
     val player by playerViewModel.uiState.collectAsStateWithLifecycle()
     val library by libraryViewModel.uiState.collectAsStateWithLifecycle()

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- widget_card, held to the dark look whatever the phone is in: for when the user has chosen
+     one in the app's settings. The layout itself follows the phone; the theme given here
+     takes the place of the one it names. See WidgetTone in styles.xml. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <include
+        layout="@layout/widget_card"
+        android:theme="@style/WidgetTone.Dark" />
+</FrameLayout>

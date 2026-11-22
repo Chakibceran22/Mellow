@@ -1,9 +1,11 @@
 package com.mellow.app
 
 import android.content.Context
+import com.mellow.core.data.AppearanceRepository
 import com.mellow.core.data.LibraryRepository
 import com.mellow.core.data.PlaylistRepository
 import com.mellow.core.data.device.DeviceLibraryRepository
+import com.mellow.core.data.local.LocalAppearanceRepository
 import com.mellow.core.data.playlist.LocalPlaylistRepository
 import com.mellow.core.playback.MediaPlaybackController
 import com.mellow.core.playback.PlaybackController
@@ -31,4 +33,7 @@ class AppContainer(context: Context) {
     val playlists: PlaylistRepository = LocalPlaylistRepository(context, deviceLibrary)
 
     val playback: PlaybackController = MediaPlaybackController(context)
+
+    /** Whether the app is light, dark, or follows the phone. */
+    val appearance: AppearanceRepository = LocalAppearanceRepository(context)
 }

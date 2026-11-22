@@ -15,9 +15,16 @@
         android:layout_height="match_parent"
         android:contentDescription="@string/widget_play">
 
+        <!-- The glass: its tint is the background, and the light on it is the picture. -->
+        <ImageView
+            android:id="@+id/widget_toggle_glass"
+            style="@style/WidgetDisc"
+            android:layout_width="40dp"
+            android:layout_height="40dp" />
+
         <ImageView
             android:id="@+id/widget_toggle_icon"
-            style="@style/WidgetDisc"
+            style="@style/WidgetDiscIcon"
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:src="@drawable/widget_play" />

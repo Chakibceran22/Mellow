@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.util.Log
 import android.util.Size
+import com.mellow.core.model.Appearance
 import com.mellow.core.playback.PlaybackController
 import com.mellow.core.playback.PlaybackState
 import kotlinx.coroutines.CancellationException
@@ -13,7 +14,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -40,7 +43,8 @@ interface WidgetHost {
  * running or not. So there are two jobs here and nothing else:
  *
  * - **Saying what is on.** Every time the song or its state changes, each widget is sent
- *   a new description ([WidgetRenderer]). Nothing is sent on a timer.
+ *   a new description ([WidgetRenderer]). Nothing is sent on a timer. They are sent one
+ *   too when the user chooses a look for the app, because the widgets wear it as well.
  * - **Doing what a tap asks.** A button on a widget wakes this app with a broadcast
  *   ([WidgetControls]), and the press is passed to the [PlaybackController] exactly as a
  *   press on the same button in the app would be.
@@ -49,8 +53,14 @@ interface WidgetHost {
  * what a widget shows after the phone restarts, and what its play button starts.
  *
  * One of these is made, with the application. Call [start] once.
+ *
+ * @param appearance the look chosen for the app: light, dark, or whichever the phone is in.
  */
-class MellowWidgets(context: Context, private val playback: PlaybackController) {
+class MellowWidgets(
+    context: Context,
+    private val playback: PlaybackController,
+    private val appearance: StateFlow<Appearance>,
+) {
 
     private val context = context.applicationContext
     private val manager: AppWidgetManager = AppWidgetManager.getInstance(this.context)
@@ -67,7 +77,8 @@ class MellowWidgets(context: Context, private val playback: PlaybackController) 
         scope.launch {
             // Until this, "nothing is on" may only mean that nobody has looked yet.
             playback.recalled()
-            playback.state.map(::shownOf).distinctUntilChanged().collectLatest { draw() }
+            // A new song, a new state of the buttons, or a new look chosen in the settings.
+            combine(playback.state.map(::shownOf).distinctUntilChanged(), appearance) { _, _ -> }.collectLatest { draw() }
         }
     }
 
@@ -138,7 +149,7 @@ class MellowWidgets(context: Context, private val playback: PlaybackController) 
                     for (id in manager.getAppWidgetIds(ComponentName(context, kind.provider))) {
                         ensureActive()
                         // Read now, not when this was asked for: a wait for the lock may have let the song change.
-                        val views = renderer.render(shownOf(playback.state.value), manager.getAppWidgetOptions(id), kind.size)
+                        val views = renderer.render(shownOf(playback.state.value), appearance.value, manager.getAppWidgetOptions(id), kind.size)
                         manager.updateAppWidget(id, views)
                     }
                 }

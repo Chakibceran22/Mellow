@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The colours a widget's layouts ask their theme for, one per role in colors.xml.
+         The theme (styles.xml, WidgetTone) is what answers, and so decides the look. -->
+    <attr name="widgetGlass" format="color" />
+    <attr name="widgetShine" format="color" />
+    <attr name="widgetEdge" format="color" />
+    <attr name="widgetInk" format="color" />
+    <attr name="widgetInkMuted" format="color" />
+    <attr name="widgetAccent" format="color" />
+    <attr name="widgetAccentEdge" format="color" />
+    <attr name="widgetAccentShine" format="color" />
+    <attr name="widgetOnAccent" format="color" />
+    <attr name="widgetPress" format="color" />
+    <attr name="widgetPressOnAccent" format="color" />
+</resources>

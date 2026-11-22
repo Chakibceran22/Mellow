@@ -6,6 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_surface"
+    android:theme="@style/WidgetTone"
     android:clipToOutline="true">
 
     <LinearLayout
@@ -67,5 +68,5 @@
         android:layout_height="match_parent"
         android:importantForAccessibility="no"
         android:scaleType="fitXY"
-        android:tint="@color/widget_light" />
+        android:tint="?attr/widgetShine" />
 </FrameLayout>

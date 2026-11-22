@@ -1,31 +1,76 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- The design system's colour roles for the light theme, copied: a widget is drawn
-         in the launcher's process and cannot read them. Keep in step with
-         core/designsystem/.../theme/Color.kt. The launcher picks between this file and
-         values-night by itself, so a widget follows the phone's theme without being redrawn. -->
+    <!-- The design system's colour roles, copied: a widget is drawn in the launcher's
+         process and cannot read them. Keep in step with core/designsystem/.../theme/Color.kt
+         and glass/GlassStyle.kt.
 
-    <!-- The body of the glass: Frost, see-through. The app's own glass is clearer still,
-         because there it frosts what is behind it. A widget cannot, and has to carry words
-         over a wallpaper it has never seen: this is as clear as it can be with dark words
-         still easy to read on a black wallpaper. -->
-    <color name="widget_glass">#9EF6FAF2</color>
-    <!-- The colour of the light on the rim of the glass: the light theme's specular, white. -->
-    <color name="widget_light">#FFFFFFFF</color>
+         Each role is here three times. Once for the light theme and once for the dark
+         (the _light and _dark names), which never change. And once under its plain
+         name, which is the light one here and the dark one in values-night: that is the
+         one that follows the phone. Layouts use none of them by name. They ask the
+         theme (styles.xml, WidgetTone), and which theme a widget is given decides
+         whether it follows the phone or is held to one look. -->
+
+    <!-- The body of the glass, see-through. Light: Frost. Dark: Night. The app's own glass is
+         clearer still, because there it frosts what is behind it. A widget cannot, and has to
+         carry words over a wallpaper it has never seen: each is as clear as it can be with its
+         words still easy to read on the worst wallpaper for it. -->
+    <color name="widget_glass_light">#9EF6FAF2</color>
+    <color name="widget_glass_dark">#A80C1714</color>
+    <color name="widget_glass">@color/widget_glass_light</color>
+
+    <!-- The colour of the light on the rim of the glass: each theme's specular, at the
+         strength its glass gives the rim. White; Sage at 78%. -->
+    <color name="widget_shine_light">#FFFFFFFF</color>
+    <color name="widget_shine_dark">#C7B1D3BA</color>
+    <color name="widget_shine">@color/widget_shine_light</color>
+
     <!-- A trace of an edge all the way round, for where the light does not reach. -->
-    <color name="widget_edge">#3DFFFFFF</color>
-    <!-- ink: Pine -->
-    <color name="widget_ink">#16302A</color>
-    <!-- inkMuted: Pine at 66% -->
-    <color name="widget_ink_muted">#A816302A</color>
-    <!-- Accent glass, as the app's main buttons are: Spruce at 78%, and its hairline. -->
-    <color name="widget_accent">#C72F5D52</color>
-    <color name="widget_accent_edge">#66FFFFFF</color>
-    <!-- onAccent: Cream -->
-    <color name="widget_on_accent">#E6F1E0</color>
+    <color name="widget_edge_light">#3DFFFFFF</color>
+    <color name="widget_edge_dark">#1FE6F1E0</color>
+    <color name="widget_edge">@color/widget_edge_light</color>
+
+    <!-- ink: Pine; Cream. -->
+    <color name="widget_ink_light">#16302A</color>
+    <color name="widget_ink_dark">#E6F1E0</color>
+    <color name="widget_ink">@color/widget_ink_light</color>
+
+    <!-- inkMuted: the same at 66%. -->
+    <color name="widget_ink_muted_light">#A816302A</color>
+    <color name="widget_ink_muted_dark">#A8E6F1E0</color>
+    <color name="widget_ink_muted">@color/widget_ink_muted_light</color>
+
+    <!-- Accent glass, as the app's main buttons are: Spruce at 78%; Mint at 72%. -->
+    <color name="widget_accent_light">#C72F5D52</color>
+    <color name="widget_accent_dark">#B889BEA4</color>
+    <color name="widget_accent">@color/widget_accent_light</color>
+
+    <!-- Its hairline. -->
+    <color name="widget_accent_edge_light">#66FFFFFF</color>
+    <color name="widget_accent_edge_dark">#4DFFFFFF</color>
+    <color name="widget_accent_edge">@color/widget_accent_edge_light</color>
+
+    <!-- The light on its rim. In the dark theme this is paler than that theme's own light,
+         which is nearly the colour of the button and would not show on it: in the app the
+         light is added to the glass, here it can only be laid over it. -->
+    <color name="widget_accent_shine_light">#E6FFFFFF</color>
+    <color name="widget_accent_shine_dark">#B3F6FAF2</color>
+    <color name="widget_accent_shine">@color/widget_accent_shine_light</color>
+
+    <!-- onAccent: Cream; Night. -->
+    <color name="widget_on_accent_light">#E6F1E0</color>
+    <color name="widget_on_accent_dark">#0C1714</color>
+    <color name="widget_on_accent">@color/widget_on_accent_light</color>
+
     <!-- What a press washes over a control. -->
-    <color name="widget_press">#2416302A</color>
-    <color name="widget_press_on_accent">#3DE6F1E0</color>
+    <color name="widget_press_light">#2416302A</color>
+    <color name="widget_press_dark">#29E6F1E0</color>
+    <color name="widget_press">@color/widget_press_light</color>
+
+    <!-- The same, on the play button. -->
+    <color name="widget_press_on_accent_light">#3DE6F1E0</color>
+    <color name="widget_press_on_accent_dark">#3D0C1714</color>
+    <color name="widget_press_on_accent">@color/widget_press_on_accent_light</color>
 
     <!-- The no-cover picture's ground: Cream, in both themes. It is a picture, not a surface. -->
     <color name="widget_cream">#E6F1E0</color>
