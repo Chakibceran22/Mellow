@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The design system's colour roles for the light theme, copied: a widget is drawn
+         in the launcher's process and cannot read them. Keep in step with
+         core/designsystem/.../theme/Color.kt. The launcher picks between this file and
+         values-night by itself, so a widget follows the phone's theme without being redrawn. -->
+
+    <!-- The body of the glass: Frost, see-through. The app's own glass is clearer still,
+         because there it frosts what is behind it. A widget cannot, and has to carry words
+         over a wallpaper it has never seen: this is as clear as it can be with dark words
+         still easy to read on a black wallpaper. -->
+    <color name="widget_glass">#9EF6FAF2</color>
+    <!-- The colour of the light on the rim of the glass: the light theme's specular, white. -->
+    <color name="widget_light">#FFFFFFFF</color>
+    <!-- A trace of an edge all the way round, for where the light does not reach. -->
+    <color name="widget_edge">#3DFFFFFF</color>
+    <!-- ink: Pine -->
+    <color name="widget_ink">#16302A</color>
+    <!-- inkMuted: Pine at 66% -->
+    <color name="widget_ink_muted">#A816302A</color>
+    <!-- Accent glass, as the app's main buttons are: Spruce at 78%, and its hairline. -->
+    <color name="widget_accent">#C72F5D52</color>
+    <color name="widget_accent_edge">#66FFFFFF</color>
+    <!-- onAccent: Cream -->
+    <color name="widget_on_accent">#E6F1E0</color>
+    <!-- What a press washes over a control. -->
+    <color name="widget_press">#2416302A</color>
+    <color name="widget_press_on_accent">#3DE6F1E0</color>
+
+    <!-- The no-cover picture's ground: Cream, in both themes. It is a picture, not a surface. -->
+    <color name="widget_cream">#E6F1E0</color>
+</resources>

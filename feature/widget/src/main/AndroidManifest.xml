@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Two entries in the phone's list of widgets, one per starting shape. They are
+             the same widget underneath: either can be resized into the other. Not
+             exported: only the system tells a widget to draw itself. -->
+        <receiver
+            android:name=".PlayerWidget"
+            android:exported="false"
+            android:label="@string/widget_player_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_player" />
+        </receiver>
+
+        <receiver
+            android:name=".CoverWidget"
+            android:exported="false"
+            android:label="@string/widget_cover_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_cover" />
+        </receiver>
+
+        <!-- Where a tap on one of a widget's buttons lands. Reached only through the
+             pending intents this app hands the launcher. -->
+        <receiver
+            android:name=".WidgetControls"
+            android:exported="false" />
+    </application>
+</manifest>

@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import androidx.core.content.ContextCompat
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -19,6 +20,8 @@ import com.mellow.core.playback.service.AudioSpectrum
 import com.mellow.core.playback.service.PlaybackService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -27,6 +30,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.random.Random
 
 /**
@@ -49,6 +53,13 @@ import kotlin.random.Random
  * the front of it; turning it off puts the list back in its own order around the track
  * that is on. Each item carries what is needed for that: where it stands in the list it
  * came from, or that the user queued it.
+ *
+ * The player forgets everything when the app is closed, so what is on is also written
+ * down as it changes ([SessionStore]). The next time, it is read back before anything
+ * else: [state] shows the same track, paused, without the player having been started, and
+ * when the player does start it is handed the same list at the same spot. It is handed it
+ * unopened. No file is touched and nothing appears among the phone's notifications until
+ * the user asks for the music.
  */
 class MediaPlaybackController(context: Context) : PlaybackController {
 
@@ -93,10 +104,41 @@ class MediaPlaybackController(context: Context) : PlaybackController {
     private val _state = MutableStateFlow(PlaybackState())
     override val state: StateFlow<PlaybackState> = _state.asStateFlow()
 
+    private val store = SessionStore(this.context)
+
+    /** One at a time, in the order asked: a session written late must never land on top of a newer one. */
+    private val storage = Dispatchers.IO.limitedParallelism(1)
+
+    /**
+     * What is on, as last written down: read from storage when the app starts, and kept
+     * in step with the player from then on. It is what [state] shows while the player is
+     * not running, and what the player is handed when it starts.
+     */
+    private var resting: SavedSession? = null
+
+    /** Reading [resting] back from storage. Everything that depends on it waits for this. */
+    private val recall: Job = scope.launch {
+        val saved = withContext(storage) { store.read() }
+        resting = saved
+        if (controller == null) _state.value = restingState()
+    }
+
+    /** A session waiting to be written down, held back a moment in case another change follows it. */
+    private var writing: Job? = null
+
+    /**
+     * The session that was put back on had played to its end. A player that has only been
+     * handed a list does not know that, so it is remembered here, until the user moves
+     * anywhere in it: see [atTheEnd].
+     */
+    private var putBackFinished = false
+
+    override suspend fun recalled() = recall.join()
+
     override val position: Flow<Long> = flow {
         while (true) {
             val player = controller
-            emit(player?.currentPosition?.coerceAtLeast(0L) ?: 0L)
+            emit(player?.currentPosition?.coerceAtLeast(0L) ?: resting?.positionMs ?: 0L)
             delay(if (player?.isPlaying == true) PlayingPollMs else IdlePollMs)
         }
     }
@@ -109,8 +151,19 @@ class MediaPlaybackController(context: Context) : PlaybackController {
                 player.shuffleModeEnabled = false
                 if (!shuffle) setShuffle(player, on = true)
             }
+            // Moved, by whatever means: wherever it is now, it is no longer at the end of what was put back.
+            if (events.containsAny(Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_POSITION_DISCONTINUITY)) putBackFinished = false
             publish(player)
             if (events.containsAny(Player.EVENT_TIMELINE_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION)) publishUpNext(player)
+            if (events.containsAny(
+                    Player.EVENT_TIMELINE_CHANGED,
+                    Player.EVENT_MEDIA_ITEM_TRANSITION,
+                    Player.EVENT_IS_PLAYING_CHANGED,
+                    Player.EVENT_POSITION_DISCONTINUITY,
+                )
+            ) {
+                writeDown(player)
+            }
             topUp(player, events)
         }
     }
@@ -130,18 +183,138 @@ class MediaPlaybackController(context: Context) : PlaybackController {
         connecting = future
         future.addListener(
             {
-                connecting = null
-                val connected = runCatching { future.get() }.getOrNull() ?: return@addListener
-                controller = connected
-                connected.shuffleModeEnabled = false
-                connected.repeatMode = settings.getInt(KeyRepeat, Player.REPEAT_MODE_OFF)
-                connected.addListener(listener)
-                publish(connected)
-                publishUpNext(connected)
-                while (pending.isNotEmpty()) pending.removeFirst().invoke(connected)
+                val connected = runCatching { future.get() }.getOrNull()
+                if (connected == null) {
+                    connecting = null
+                    return@addListener
+                }
+                scope.launch {
+                    // What was on goes back on first, so that everything after this finds
+                    // the player as the user left it: a waiting "play" most of all.
+                    putBackOn(connected)
+                    connecting = null
+                    // The service went away while that was being done.
+                    if (!connected.isConnected) return@launch
+                    controller = connected
+                    connected.shuffleModeEnabled = false
+                    connected.repeatMode = settings.getInt(KeyRepeat, Player.REPEAT_MODE_OFF)
+                    connected.addListener(listener)
+                    publish(connected)
+                    publishUpNext(connected)
+                    while (pending.isNotEmpty()) pending.removeFirst().invoke(connected)
+                }
             },
             ContextCompat.getMainExecutor(context),
         )
+    }
+
+    /**
+     * Hands a player that has just started the session that was on when the last one
+     * stopped. Only an empty player: one that already holds something knows better.
+     *
+     * The tracks are set and nothing more. The player does not open them until it is told
+     * to play, so being put back on costs no more than a list.
+     */
+    private suspend fun putBackOn(player: MediaController) {
+        recall.join()
+        val saved = resting ?: return
+        if (player.mediaItemCount > 0) return
+        val here = withContext(storage) { store.stillOnPhone(saved) }
+        if (!player.isConnected || player.mediaItemCount > 0) return
+        if (here !== saved) {
+            resting = here
+            withContext(NonCancellable + storage) { store.write(here) }
+        }
+        if (here == null || !player.isConnected) return
+        source = here.source
+        sourceLabel = here.sourceLabel
+        lastPlace = here.lastPlace
+        // Numbers given out from now on must be new ones, even if the clock has been put back.
+        lastQueued = maxOf(lastQueued, here.items.maxOf(SavedItem::queued))
+        putBackFinished = here.finished
+        player.setMediaItems(here.items.map { it.track.toMediaItem(place = it.place, queued = it.queued) }, here.index, here.positionMs)
+    }
+
+    /**
+     * Writes down what is on, a moment from now. Changes come in bursts (a new queue is a
+     * new list, a new track and a new position at once), and only the last of a burst is
+     * worth keeping.
+     */
+    private fun writeDown(player: Player) {
+        writing?.cancel()
+        writing = scope.launch {
+            delay(WriteDownAfterMs)
+            if (controller !== player) return@launch
+            val session = sessionOf(player)
+            resting = session
+            // Once it is being written it is written, whatever happens to this job.
+            withContext(NonCancellable + storage) { store.write(session) }
+        }
+    }
+
+    /** What is on in [player] now, as it would be written down. Null when nothing is. */
+    private fun sessionOf(player: Player): SavedSession? {
+        val count = player.mediaItemCount
+        val current = player.currentMediaItemIndex
+        if (count == 0 || current !in 0 until count) return null
+        // A list can be thousands long. What is kept is the part around where it has got to.
+        val from = (current - KeptBehind).coerceAtLeast(0)
+        val until = (current + 1 + KeptAhead).coerceAtMost(count)
+        val items = ArrayList<SavedItem>(until - from)
+        var index = -1
+        for (at in from until until) {
+            val item = player.getMediaItemAt(at)
+            val track = item.toTrack() ?: continue
+            if (index < 0 && at >= current) index = items.size
+            items += SavedItem(track, item.place(), item.queued())
+        }
+        if (items.isEmpty()) return null
+        return SavedSession(
+            items = items,
+            index = if (index < 0) items.lastIndex else index,
+            positionMs = player.currentPosition.coerceAtLeast(0L),
+            source = source,
+            sourceLabel = sourceLabel,
+            lastPlace = lastPlace,
+            finished = atTheEnd(player),
+        )
+    }
+
+    /** Whether [player] has played everything it was given and stopped, in this run of the app or the one before. */
+    private fun atTheEnd(player: Player): Boolean = player.playbackState == Player.STATE_ENDED || putBackFinished
+
+    /** [state] for when the player is not running: what was on, paused. */
+    private fun restingState(): PlaybackState {
+        val repeat = settings.getInt(KeyRepeat, Player.REPEAT_MODE_OFF).toRepeatMode()
+        val saved = resting ?: return PlaybackState(shuffle = shuffle, repeat = repeat)
+        return PlaybackState(
+            track = saved.track,
+            isPlaying = false,
+            durationMs = saved.track.durationMs,
+            shuffle = shuffle,
+            repeat = repeat,
+            source = saved.source,
+            // As the player counts them: repeating the whole list joins its ends, repeating one track does not.
+            hasNext = saved.index < saved.items.lastIndex || repeat == RepeatMode.All,
+            hasPrevious = saved.index > 0 || repeat == RepeatMode.All,
+        )
+    }
+
+    private fun Int.toRepeatMode(): RepeatMode = when (this) {
+        Player.REPEAT_MODE_ALL -> RepeatMode.All
+        Player.REPEAT_MODE_ONE -> RepeatMode.One
+        else -> RepeatMode.Off
+    }
+
+    /**
+     * Plays. A player that was handed its list unopened (see [putBackOn]), or that stopped
+     * on a file it could not read, opens the track first: otherwise it would agree to play
+     * and stay silent. Not while a file is being rewritten, though; [pickUp] opens it
+     * again when that is done.
+     */
+    private fun start(player: Player) {
+        if (player.playbackState == Player.STATE_IDLE && player.mediaItemCount > 0 && !lettingGo) player.prepare()
+        player.play()
     }
 
     override fun play(queue: List<Track>, startIndex: Int?, tail: QueueTail?, source: String?, sourceLabel: String?) {
@@ -200,9 +373,9 @@ class MediaPlaybackController(context: Context) : PlaybackController {
             val at = if (atFront) first else first + queuedAhead(player).size
             player.addMediaItems(at, joining.map { it.toMediaItem(queued = ++lastQueued) })
             // It had played to the end of everything and stopped: what was just queued is what it plays now.
-            if (player.playbackState == Player.STATE_ENDED) {
+            if (atTheEnd(player)) {
                 player.seekToDefaultPosition(first)
-                player.play()
+                start(player)
             }
         }
     }
@@ -239,7 +412,7 @@ class MediaPlaybackController(context: Context) : PlaybackController {
             if (count > 0) player.moveMediaItems(first, first + count, target - count + 1)
             player.seekToDefaultPosition(target - count)
         }
-        player.play()
+        start(player)
     }
 
     /** The user's own queue: every item straight after the current one that they queued, as far as those run. */
@@ -346,22 +519,49 @@ class MediaPlaybackController(context: Context) : PlaybackController {
         when {
             player.isPlaying -> player.pause()
             // Finished the queue: the same button starts it over.
-            player.playbackState == Player.STATE_ENDED -> {
+            atTheEnd(player) -> {
                 player.seekToDefaultPosition(0)
-                player.play()
+                start(player)
             }
-            else -> player.play()
+            else -> start(player)
         }
     }
 
-    override fun next() = send { it.seekToNextMediaItem() }
+    /*
+     * Moving about is always asked for by place ("go to item 4", "go to 0:31 of item 3"),
+     * never by the player's shorthands for the same thing ("the next one", "0:31 of this
+     * one"). The shorthands are only accepted while the player reckons they make sense,
+     * and its reckoning runs behind: for a moment after it has been handed a list it still
+     * believes it has none, and until a track has been opened it will not seek within it.
+     * Both are exactly where a player that has just had its last session put back stands,
+     * and a press that arrived with it would be dropped without a word. Going by place is
+     * accepted at any time, and means the same.
+     */
+
+    override fun next() = send { player ->
+        val to = player.nextMediaItemIndex
+        if (to != C.INDEX_UNSET) player.seekToDefaultPosition(to)
+    }
 
     /** Restarts the track if it is under way, otherwise steps back one, as music players do. */
-    override fun previous() = send { it.seekToPrevious() }
+    override fun previous() = send { player ->
+        if (player.mediaItemCount == 0) return@send
+        val before = player.previousMediaItemIndex
+        if (before == C.INDEX_UNSET || player.currentPosition > player.maxSeekToPreviousPosition) {
+            player.seekTo(player.currentMediaItemIndex, 0L)
+        } else {
+            player.seekToDefaultPosition(before)
+        }
+    }
 
-    override fun previousTrack() = send { it.seekToPreviousMediaItem() }
+    override fun previousTrack() = send { player ->
+        val before = player.previousMediaItemIndex
+        if (before != C.INDEX_UNSET) player.seekToDefaultPosition(before)
+    }
 
-    override fun seekTo(positionMs: Long) = send { it.seekTo(positionMs) }
+    override fun seekTo(positionMs: Long) = send { player ->
+        if (player.mediaItemCount > 0) player.seekTo(player.currentMediaItemIndex, positionMs)
+    }
 
     override fun toggleShuffle() = send { player ->
         setShuffle(player, on = !shuffle)
@@ -443,17 +643,15 @@ class MediaPlaybackController(context: Context) : PlaybackController {
         val item = player.currentMediaItem
         if (item != null && item.queued() == 0L) lastPlace = item.place()
         val previous = _state.value.track
+        // Unpacked once per track, not on every tick of the player.
+        val track = if (item == null) null else previous?.takeIf { it.id == item.mediaId } ?: item.toTrack()
         _state.value = PlaybackState(
-            // Unpacked once per track, not on every tick of the player.
-            track = if (item == null) null else previous?.takeIf { it.id == item.mediaId } ?: item.toTrack(),
+            track = track,
             isPlaying = player.isPlaying,
-            durationMs = player.duration.takeIf { it > 0 } ?: 0L,
+            // A track that has not been opened yet has no length the player knows of; the library's will do.
+            durationMs = player.duration.takeIf { it > 0 } ?: track?.durationMs ?: 0L,
             shuffle = shuffle,
-            repeat = when (player.repeatMode) {
-                Player.REPEAT_MODE_ALL -> RepeatMode.All
-                Player.REPEAT_MODE_ONE -> RepeatMode.One
-                else -> RepeatMode.Off
-            },
+            repeat = player.repeatMode.toRepeatMode(),
             source = if (item == null) null else source,
             hasNext = player.hasNextMediaItem(),
             hasPrevious = player.hasPreviousMediaItem(),
@@ -485,7 +683,11 @@ class MediaPlaybackController(context: Context) : PlaybackController {
         _upNext.value = UpNext(queued = queued, then = then, more = count - shownUntil, from = sourceLabel)
     }
 
-    /** The service was stopped (for instance, the app was swiped away while paused). */
+    /**
+     * The service was stopped (for instance, the app was swiped away while paused). What
+     * was on is still written down, and goes back on with the next thing that is asked of
+     * the player.
+     */
     private fun onServiceGone() {
         controller?.removeListener(listener)
         controller = null
@@ -493,7 +695,8 @@ class MediaPlaybackController(context: Context) : PlaybackController {
         source = null
         sourceLabel = null
         lastPlace = -1
-        _state.value = PlaybackState()
+        putBackFinished = false
+        _state.value = restingState()
         _upNext.value = UpNext()
     }
 
@@ -577,5 +780,12 @@ class MediaPlaybackController(context: Context) : PlaybackController {
 
         /** In shuffle, how many of the tracks to come are left alone when more are mixed in. */
         const val SettledAhead = 6
+
+        /** How long a change waits to be written down, in case another is right behind it. */
+        const val WriteDownAfterMs = 500L
+
+        /** How many tracks before and after the one that is on are written down with it. */
+        const val KeptBehind = 100
+        const val KeptAhead = 400
     }
 }

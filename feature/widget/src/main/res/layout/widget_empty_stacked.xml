@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nothing to play, where the widget has more than one row: the mark above the words, in the middle. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_surface"
+    android:clipToOutline="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <ImageView
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginBottom="10dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_sample_cover" />
+
+        <TextView
+            style="@style/WidgetText.Title"
+            android:text="@string/widget_nothing_title"
+            android:textAlignment="center" />
+
+        <TextView
+            style="@style/WidgetText.Artist"
+            android:text="@string/widget_nothing_body"
+            android:textAlignment="center" />
+    </LinearLayout>
+
+    <!-- The light on the rim of the glass, laid over everything. A picture made to this
+         widget's size (WidgetGlass), coloured here so that it follows the phone's theme. -->
+    <ImageView
+        android:id="@+id/widget_light"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:tint="@color/widget_light" />
+</FrameLayout>

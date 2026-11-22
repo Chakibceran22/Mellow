@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The same, with square corners: for where the cover runs to the widget's edge and the
+     widget's own shape does the rounding. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <color android:color="@color/widget_cream" />
+    </item>
+    <item>
+        <inset
+            android:drawable="@drawable/mellow_mark"
+            android:inset="19%" />
+    </item>
+</layer-list>

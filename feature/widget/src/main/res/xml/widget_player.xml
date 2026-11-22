@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The player: four cells wide, one high, and resizable to anything from there.
+
+     Never refreshed on a timer (updatePeriodMillis is 0): the app redraws it whenever what
+     is playing changes, and at no other time is there anything new to show.
+
+     Home screen only. The lock screen is left for later: it is a different host on every
+     make of phone (Samsung's takes single-colour widgets declared its own way), and
+     nothing here has been drawn or tried for one. The phone's own player card already
+     shows there while music is on. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_player_description"
+    android:initialLayout="@layout/widget_starting"
+    android:minWidth="250dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="40dp"
+    android:previewImage="@drawable/widget_preview_player"
+    android:previewLayout="@layout/widget_bar"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

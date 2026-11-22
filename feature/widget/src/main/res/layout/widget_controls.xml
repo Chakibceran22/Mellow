@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Back, play or pause, forward. Shared by every shape of the widget. The buttons are as
+     tall as the row they are put in, so there is more to press than there is to see. -->
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <ImageView
+        android:id="@+id/widget_previous"
+        style="@style/WidgetStep"
+        android:contentDescription="@string/widget_previous"
+        android:src="@drawable/widget_previous" />
+
+    <FrameLayout
+        android:id="@+id/widget_toggle"
+        android:layout_width="52dp"
+        android:layout_height="match_parent"
+        android:contentDescription="@string/widget_play">
+
+        <ImageView
+            android:id="@+id/widget_toggle_icon"
+            style="@style/WidgetDisc"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/widget_play" />
+    </FrameLayout>
+
+    <ImageView
+        android:id="@+id/widget_next"
+        style="@style/WidgetStep"
+        android:contentDescription="@string/widget_next"
+        android:src="@drawable/widget_next" />
+</merge>

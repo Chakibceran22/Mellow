@@ -42,3 +42,5 @@ include(":feature:library")
 include(":feature:player")
 include(":feature:search")
 include(":feature:settings")
+// What is playing, on the home screen. Platform views, not Compose.
+include(":feature:widget")

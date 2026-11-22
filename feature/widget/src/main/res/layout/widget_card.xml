@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Two rows high and wider than that: the cover down one side, whole, as tall as the
+     widget; beside it the song at the top and the buttons in the far bottom corner. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_surface"
+    android:clipToOutline="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:baselineAligned="false"
+        android:orientation="horizontal"
+        android:padding="@dimen/widget_card_padding">
+
+        <ImageView
+            android:id="@+id/widget_cover"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:adjustViewBounds="true"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_sample_cover" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="14dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_title"
+                style="@style/WidgetText.Title"
+                android:layout_marginTop="4dp"
+                android:maxLines="2"
+                android:singleLine="false"
+                android:text="@string/widget_sample_title"
+                android:textSize="17sp" />
+
+            <TextView
+                android:id="@+id/widget_artist"
+                style="@style/WidgetText.Artist"
+                android:text="@string/widget_sample_artist"
+                android:textSize="14sp" />
+
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <!-- Pushed out by the empty part of the last button, so that its icon, not its
+                 edge, stands on the line the cover's far side would stand on. -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:layout_gravity="end"
+                android:layout_marginEnd="-11dp"
+                android:baselineAligned="false"
+                android:orientation="horizontal">
+
+                <include layout="@layout/widget_controls" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- The light on the rim of the glass, laid over everything. A picture made to this
+         widget's size (WidgetGlass), coloured here so that it follows the phone's theme. -->
+    <ImageView
+        android:id="@+id/widget_light"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:tint="@color/widget_light" />
+</FrameLayout>

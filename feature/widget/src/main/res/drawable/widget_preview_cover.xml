@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A still picture of the cover widget; see widget_preview_player. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="150dp"
+        android:height="160dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/widget_glass" />
+            <corners android:radius="22dp" />
+        </shape>
+    </item>
+    <!-- The cover: the top of the widget, to its edges. -->
+    <item
+        android:width="150dp"
+        android:height="102dp"
+        android:gravity="top">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/widget_cream" />
+            <corners
+                android:topLeftRadius="22dp"
+                android:topRightRadius="22dp" />
+        </shape>
+    </item>
+    <item
+        android:width="66dp"
+        android:height="66dp"
+        android:drawable="@drawable/mellow_mark"
+        android:gravity="top|center_horizontal"
+        android:top="18dp" />
+    <item
+        android:width="60dp"
+        android:height="9dp"
+        android:bottom="33dp"
+        android:gravity="bottom|start"
+        android:start="14dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/widget_ink" />
+            <corners android:radius="4.5dp" />
+        </shape>
+    </item>
+    <item
+        android:width="38dp"
+        android:height="7dp"
+        android:bottom="18dp"
+        android:gravity="bottom|start"
+        android:start="14dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/widget_ink_muted" />
+            <corners android:radius="3.5dp" />
+        </shape>
+    </item>
+    <item
+        android:width="40dp"
+        android:height="40dp"
+        android:bottom="9dp"
+        android:end="8dp"
+        android:gravity="bottom|end">
+        <shape android:shape="oval">
+            <solid android:color="@color/widget_accent" />
+        </shape>
+    </item>
+    <item
+        android:width="20dp"
+        android:height="20dp"
+        android:bottom="19dp"
+        android:drawable="@drawable/widget_preview_play"
+        android:end="18dp"
+        android:gravity="bottom|end" />
+</layer-list>

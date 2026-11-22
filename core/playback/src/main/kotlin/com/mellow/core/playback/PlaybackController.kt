@@ -105,6 +105,17 @@ interface PlaybackController {
      */
     fun audioSpectrum(into: FloatArray): Boolean
 
+    /**
+     * Suspends until the controller has recalled what was on when the app was last open,
+     * which it starts doing by itself as soon as it is made. Before that [state] is empty
+     * whether or not anything was on; after it, [state] holds that track, paused, without
+     * the player having been started.
+     *
+     * For whatever draws [state] once and may get no second chance, such as a widget.
+     * Screens have no need of it: they follow [state] and catch up within a frame or two.
+     */
+    suspend fun recalled()
+
     /** Binds to the playback service. Safe to call repeatedly. */
     fun connect()
 

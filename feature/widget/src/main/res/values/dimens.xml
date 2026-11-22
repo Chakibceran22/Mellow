@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- How round a widget's corners are. From Android 12 the phone decides, so that
+         every widget on the screen is round by the same amount: see values-v31. -->
+    <dimen name="widget_radius">22dp</dimen>
+
+    <!-- The gap between a widget's edge and what is in it. The renderer reads these too:
+         it works out how large a cover will be shown from them. -->
+    <dimen name="widget_bar_padding">10dp</dimen>
+    <dimen name="widget_card_padding">12dp</dimen>
+
+    <!-- The lowest the strip of words and buttons under a full cover can be. -->
+    <dimen name="widget_band_height">58dp</dimen>
+</resources>

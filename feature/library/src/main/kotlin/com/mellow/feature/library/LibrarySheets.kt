@@ -202,6 +202,9 @@ private class Openings {
  *
  * Nothing changes until Save is pressed, the picture included.
  *
+ * The cover is its own control: a tap on it chooses another picture. There is no button
+ * beside it saying so.
+ *
  * @param writesToSong false on a phone where Mellow can only keep changes to itself.
  */
 @Composable
@@ -252,9 +255,8 @@ private fun EditSong(
         Column(Modifier.weight(1f)) {
             Text("From the album", style = MellowTheme.type.caption, color = colors.inkMuted)
             Text(filed?.album ?: song.album, style = MellowTheme.type.headline, maxLines = 2)
-            Spacer(Modifier.height(2.dp))
-            TextLink("Choose a picture", onChoosePicture)
             if (wearsOwnPicture && picture is PictureChange.Keep) {
+                Spacer(Modifier.height(2.dp))
                 TextLink("Go back to its original picture", onClick = { backToOwnCover = true })
             }
         }

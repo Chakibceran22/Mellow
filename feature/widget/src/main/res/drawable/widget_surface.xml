@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The body of a widget's glass: a see-through tint, so the wallpaper shows through it,
+     and the faintest of edges. The light on its rim is laid over it as a picture
+     (WidgetGlass). What it cannot do is frost or bend the wallpaper as the app's glass
+     does to what is behind it: Android shows a widget nothing of what it sits on. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/widget_glass" />
+    <corners android:radius="@dimen/widget_radius" />
+    <stroke
+        android:width="1dp"
+        android:color="@color/widget_edge" />
+</shape>

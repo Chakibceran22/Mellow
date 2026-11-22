@@ -5,14 +5,12 @@ import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.net.Uri
 import android.provider.MediaStore
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.core.content.ContextCompat
 import androidx.media3.common.Player
 import androidx.media3.common.util.BitmapLoader
 import androidx.media3.common.util.UnstableApi
@@ -29,6 +27,7 @@ import androidx.media3.session.MediaSessionService
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import com.mellow.core.playback.NoCoverPicture
 import com.mellow.core.playback.R
 
 /**
@@ -143,27 +142,16 @@ private class DeviceAudioOnly : MediaSession.Callback {
 }
 
 /**
- * Loads the picture for the notification and the lock screen. Plenty of music has no
- * cover; rather than leave the system's player card blank for those, it is given the
- * Mellow mark on the app's own pale green, so the card always looks like Mellow's.
+ * Loads the picture for the notification and the lock screen. Music with no cover of its
+ * own is given the [NoCoverPicture], so the system's player card is never blank.
  */
 @OptIn(UnstableApi::class)
 private class MarkWhenNoCover(context: Context, private val covers: BitmapLoader) : BitmapLoader {
 
     private val context = context.applicationContext
 
-    /** Drawn once, the first time it is needed. The mark sits in the exact middle. */
-    private val mark: Bitmap by lazy {
-        Bitmap.createBitmap(MarkSide, MarkSide, Bitmap.Config.ARGB_8888).also { bitmap ->
-            val canvas = Canvas(bitmap)
-            canvas.drawColor(Cream)
-            val inset = (MarkSide * (1f - MarkShare) / 2f).toInt()
-            ContextCompat.getDrawable(context, R.drawable.mellow_mark)?.apply {
-                setBounds(inset, inset, MarkSide - inset, MarkSide - inset)
-                draw(canvas)
-            }
-        }
-    }
+    /** Drawn once, the first time it is needed. */
+    private val mark: Bitmap by lazy { NoCoverPicture.draw(this.context, MarkSide) }
 
     override fun supportsMimeType(mimeType: String): Boolean = covers.supportsMimeType(mimeType)
 
@@ -174,12 +162,6 @@ private class MarkWhenNoCover(context: Context, private val covers: BitmapLoader
 
     private companion object {
         const val MarkSide = 512
-
-        /** How much of the picture's width the mark takes. */
-        const val MarkShare = 0.62f
-
-        /** The palette's Cream. This module has no view of the design system's colours. */
-        const val Cream = 0xFFE6F1E0.toInt()
     }
 }
 

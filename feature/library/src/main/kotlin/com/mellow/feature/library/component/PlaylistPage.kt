@@ -53,7 +53,7 @@ import com.mellow.feature.library.songs
  * according to the switch.
  *
  * Songs are selected the same way as everywhere else, by pressing and holding one. The
- * cover can be changed by tapping it, or with the picture button above it.
+ * cover is changed by tapping it; it is its own control, and has no button of its own.
  *
  * The list holds only as much of the playlist as has been scrolled to. Nearing the end of
  * that calls [onNearEnd] for more, and a few placeholder rows stand in if the scroll gets
@@ -104,8 +104,6 @@ internal fun PlaylistPage(
             Row(gutter.fillMaxWidth().padding(top = spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                 GlassIconButton(MellowIcons.Back, contentDescription = "Back to Library", onClick = onBack)
                 Spacer(Modifier.weight(1f))
-                GlassIconButton(MellowIcons.Picture, contentDescription = "Change cover", onClick = onChangeCover)
-                Spacer(Modifier.width(10.dp))
                 GlassIconButton(MellowIcons.Rename, contentDescription = "Rename playlist", onClick = onRename)
                 Spacer(Modifier.width(10.dp))
                 GlassIconButton(MellowIcons.Delete, contentDescription = "Delete playlist", onClick = onDelete)

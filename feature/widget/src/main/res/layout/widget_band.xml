@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The strip under a full cover: the song, and the buttons there is room for.
+
+     The buttons are widget_controls again, written out, because here the two either side
+     of play start out hidden. A widget this narrow has no room for them, and this file as
+     it stands is also the picture shown in the phone's list of widgets. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="@dimen/widget_band_height"
+    android:baselineAligned="false"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="14dp"
+    android:paddingEnd="2dp">
+
+    <LinearLayout
+        android:id="@+id/widget_words"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="4dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/widget_title"
+            style="@style/WidgetText.Title"
+            android:text="@string/widget_sample_title" />
+
+        <TextView
+            android:id="@+id/widget_artist"
+            style="@style/WidgetText.Artist"
+            android:text="@string/widget_sample_artist" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/widget_previous"
+        style="@style/WidgetStep"
+        android:contentDescription="@string/widget_previous"
+        android:src="@drawable/widget_previous"
+        android:visibility="gone" />
+
+    <FrameLayout
+        android:id="@+id/widget_toggle"
+        android:layout_width="52dp"
+        android:layout_height="match_parent"
+        android:contentDescription="@string/widget_play">
+
+        <ImageView
+            android:id="@+id/widget_toggle_icon"
+            style="@style/WidgetDisc"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/widget_play" />
+    </FrameLayout>
+
+    <ImageView
+        android:id="@+id/widget_next"
+        style="@style/WidgetStep"
+        android:contentDescription="@string/widget_next"
+        android:src="@drawable/widget_next"
+        android:visibility="gone" />
+</LinearLayout>

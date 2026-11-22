@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The two entries in the phone's list of widgets, under the app's name. -->
+    <string name="widget_player_name">Player</string>
+    <string name="widget_player_description">What is on, with play, pause and skip.</string>
+    <string name="widget_cover_name">Cover</string>
+    <string name="widget_cover_description">The cover of what is on, with play and pause.</string>
+
+    <!-- Read out by a screen reader; never shown. -->
+    <string name="widget_play">Play</string>
+    <string name="widget_pause">Pause</string>
+    <string name="widget_next">Next song</string>
+    <string name="widget_previous">Previous song</string>
+
+    <!-- With nothing to play: before the first song, or after the last one left the phone. -->
+    <string name="widget_nothing_title">Nothing playing</string>
+    <string name="widget_nothing_body">Tap to open Mellow</string>
+
+    <!-- Stand-ins shown in the phone's list of widgets, before one is placed. -->
+    <string name="widget_sample_title">Song title</string>
+    <string name="widget_sample_artist">Artist</string>
+</resources>

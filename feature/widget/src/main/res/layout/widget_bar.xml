@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One row high: the cover, the song, the buttons. The cover is as tall as the row
+     allows and exactly as wide. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_surface"
+    android:clipToOutline="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:baselineAligned="false"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/widget_bar_padding"
+        android:paddingEnd="6dp">
+
+        <ImageView
+            android:id="@+id/widget_cover"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_marginTop="@dimen/widget_bar_padding"
+            android:layout_marginBottom="@dimen/widget_bar_padding"
+            android:adjustViewBounds="true"
+            android:importantForAccessibility="no"
+            android:maxWidth="72dp"
+            android:src="@drawable/widget_sample_cover" />
+
+        <LinearLayout
+            android:id="@+id/widget_words"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="4dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_title"
+                style="@style/WidgetText.Title"
+                android:text="@string/widget_sample_title" />
+
+            <TextView
+                android:id="@+id/widget_artist"
+                style="@style/WidgetText.Artist"
+                android:text="@string/widget_sample_artist" />
+        </LinearLayout>
+
+        <!-- Takes the words' place when there is no room for words, to keep the buttons at the far end. -->
+        <FrameLayout
+            android:id="@+id/widget_gap"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:visibility="gone" />
+
+        <include layout="@layout/widget_controls" />
+    </LinearLayout>
+
+    <!-- The light on the rim of the glass, laid over everything. A picture made to this
+         widget's size (WidgetGlass), coloured here so that it follows the phone's theme. -->
+    <ImageView
+        android:id="@+id/widget_light"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:tint="@color/widget_light" />
+</FrameLayout>

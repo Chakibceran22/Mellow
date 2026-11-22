@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The dark theme's roles. See values/colors.xml. -->
+
+    <!-- The body of the glass: Night, see-through, dense enough for pale words on a white wallpaper. -->
+    <color name="widget_glass">#A80C1714</color>
+    <!-- The dark theme's specular: Sage, at the strength its glass gives the rim (78%). -->
+    <color name="widget_light">#C7B1D3BA</color>
+    <color name="widget_edge">#1FE6F1E0</color>
+    <!-- ink: Cream -->
+    <color name="widget_ink">#E6F1E0</color>
+    <!-- inkMuted: Cream at 66% -->
+    <color name="widget_ink_muted">#A8E6F1E0</color>
+    <!-- Accent glass: Mint at 72%, and its hairline. -->
+    <color name="widget_accent">#B889BEA4</color>
+    <color name="widget_accent_edge">#4DFFFFFF</color>
+    <!-- onAccent: Night -->
+    <color name="widget_on_accent">#0C1714</color>
+    <color name="widget_press">#29E6F1E0</color>
+    <color name="widget_press_on_accent">#3D0C1714</color>
+</resources>

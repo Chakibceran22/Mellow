@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Text is set in the phone's own typeface. A widget cannot carry a font of its own
+         into the launcher, and the phone's is what every other widget beside it uses. -->
+    <style name="WidgetText">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:textAlignment">viewStart</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <!-- The name of the song. -->
+    <style name="WidgetText.Title">
+        <item name="android:textSize">15sp</item>
+        <item name="android:textColor">@color/widget_ink</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <!-- Who it is by. -->
+    <style name="WidgetText.Artist">
+        <item name="android:layout_marginTop">3dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">@color/widget_ink_muted</item>
+    </style>
+
+    <!-- Back and forward: an icon in a tall, narrow place to press. -->
+    <style name="WidgetStep">
+        <item name="android:layout_width">44dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:background">@drawable/widget_press</item>
+        <item name="android:scaleType">center</item>
+        <item name="android:tint">@color/widget_ink</item>
+    </style>
+
+    <!-- The icon on the play button: a disc in the accent colour. -->
+    <style name="WidgetDisc">
+        <item name="android:layout_gravity">center</item>
+        <item name="android:background">@drawable/widget_disc</item>
+        <item name="android:scaleType">center</item>
+        <item name="android:tint">@color/widget_on_accent</item>
+        <item name="android:importantForAccessibility">no</item>
+    </style>
+</resources>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A cover to show where there is no song to take one from: in the phone's list of
+     widgets, and for the moment before a new widget is first drawn. The Mellow mark on
+     its pale green, as music with no cover of its own gets (NoCoverPicture).
+
+     The mark is drawn 660dp across and this picture is shrunk as a whole to wherever it
+     is shown, corners included. So the radius is given at that scale: 170dp of a picture
+     about 1060dp wide, which comes out near 8dp on a cover 52dp wide. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/widget_cream" />
+            <corners android:radius="170dp" />
+        </shape>
+    </item>
+    <item>
+        <inset
+            android:drawable="@drawable/mellow_mark"
+            android:inset="19%" />
+    </item>
+</layer-list>

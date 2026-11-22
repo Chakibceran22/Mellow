@@ -43,6 +43,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -108,9 +109,13 @@ import kotlin.math.abs
  * composed, and so does the player once a track is loaded, so a swipe or a tap only ever
  * moves things that already exist. Whatever is covered or off screen is told so, and stops
  * animating until it is seen again.
+ *
+ * @param playerAskedAt when something outside the app (a tap on a widget) last asked for
+ *   the player to be shown, on any clock that only goes forwards. Each new time brings the
+ *   Now Playing sheet up once. Zero means nobody has asked.
  */
 @Composable
-fun MellowApp(container: AppContainer) {
+fun MellowApp(container: AppContainer, playerAskedAt: Long = 0L) {
     val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.factory(container.library, container.playlists, container.playback))
     val libraryViewModel: LibraryViewModel =
         viewModel(factory = LibraryViewModel.factory(container.library, container.playlists, container.playback))
@@ -209,6 +214,17 @@ fun MellowApp(container: AppContainer) {
         if (!hasTrack) {
             sheetOpen = false
             sheet.snapTo(0f)
+        }
+    }
+
+    // Asked for from a widget. It waits for a track: opened cold, the app takes a moment
+    // to recall what was on, and there is no player to show before it has. The time
+    // answered is kept, so the same request is not answered again when the screen is rebuilt.
+    var playerShownFor by rememberSaveable { mutableLongStateOf(0L) }
+    LaunchedEffect(playerAskedAt, hasTrack) {
+        if (playerAskedAt > playerShownFor && hasTrack) {
+            playerShownFor = playerAskedAt
+            moveSheet(1f)
         }
     }
 
