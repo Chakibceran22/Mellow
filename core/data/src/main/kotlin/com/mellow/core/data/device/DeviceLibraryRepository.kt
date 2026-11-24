@@ -185,7 +185,7 @@ class DeviceLibraryRepository(context: Context) : LibraryRepository {
         val jpeg = if (pictureUri == null) {
             null
         } else {
-            withContext(Dispatchers.IO) { pictures.read(Uri.parse(pictureUri)) } ?: return SongChanges(pictureUnreadable = true)
+            readPicture(pictureUri) ?: return SongChanges(pictureUnreadable = true)
         }
         // Only a real difference from the file is written. Anything else means "as it is".
         fun changed(typed: String, onFile: String) = typed.trim().takeIf { it.isNotEmpty() && it != onFile }
@@ -228,7 +228,7 @@ class DeviceLibraryRepository(context: Context) : LibraryRepository {
     override suspend fun writeCoverPicture(trackIds: Collection<String>, pictureUri: String): SongChanges {
         val ids = trackIds.mapNotNull(String::toLongOrNull)
         if (ids.isEmpty()) return SongChanges()
-        val jpeg = withContext(Dispatchers.IO) { pictures.read(Uri.parse(pictureUri)) }
+        val jpeg = readPicture(pictureUri)
             ?: return SongChanges(pictureUnreadable = true)
         val batch = writeEach(ids) { Mp3Tag.Changes(picture = jpeg) }
         withContext(Dispatchers.IO) {
@@ -418,6 +418,24 @@ class DeviceLibraryRepository(context: Context) : LibraryRepository {
     private fun keptInMellow(): Set<Long> =
         notes.getStringSet(KeptInMellow, emptySet()).orEmpty().mapNotNullTo(HashSet(), String::toLongOrNull)
 
+    /**
+     * The picture at [pictureUri], ready to store or to write into songs: one picked from
+     * the phone, or the cover a song wears. A song's own cover is read out of its file
+     * whole; Android serves it at the song's address too, but only as a small thumbnail,
+     * and that is what the other songs would be given. Null if it cannot be read as an image.
+     */
+    private suspend fun readPicture(pictureUri: String): ByteArray? {
+        val uri = Uri.parse(pictureUri)
+        val ownCoverOf = uri.pathSegments
+            .takeIf { pictureUri.startsWith("$TrackUri/") && uri.lastPathSegment == "albumart" && it.size >= 2 }
+            ?.let { it[it.size - 2].toLongOrNull() }
+        if (ownCoverOf != null) {
+            val inFile = songFiles.picture(ownCoverOf)?.let { withContext(Dispatchers.IO) { pictures.read(it) } }
+            if (inFile != null) return inFile
+        }
+        return withContext(Dispatchers.IO) { pictures.read(uri) }
+    }
+
     private fun noteKeptInMellow(add: Collection<Long> = emptyList(), drop: Collection<Long> = emptyList()) {
         if (add.isEmpty() && drop.isEmpty()) return
         val now = keptInMellow() + add - drop.toSet()
@@ -427,8 +445,8 @@ class DeviceLibraryRepository(context: Context) : LibraryRepository {
     override suspend fun setCoverPicture(trackIds: Collection<String>, pictureUri: String): Boolean {
         val ids = trackIds.mapNotNull(String::toLongOrNull)
         if (ids.isEmpty()) return false
+        val jpeg = readPicture(pictureUri) ?: return false
         val stored = withContext(Dispatchers.IO) {
-            val jpeg = pictures.read(Uri.parse(pictureUri)) ?: return@withContext false
             edits.setPicture(ids, jpeg)
             true
         }

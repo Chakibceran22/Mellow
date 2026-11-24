@@ -9,6 +9,7 @@ import android.os.Build
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.nio.ByteBuffer
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -57,11 +58,31 @@ internal class Pictures(context: Context) {
      * ever shown. A photo straight off a camera is many times that, and would be decoded
      * in full every time its cover scrolled into view. Null if it cannot be read as an image.
      */
-    fun read(source: Uri): ByteArray? = try {
+    fun read(source: Uri): ByteArray? {
         val resolver = context.contentResolver
-        val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        return shrink(
             // Also turns the picture the right way up, which the older route does not.
-            ImageDecoder.decodeBitmap(ImageDecoder.createSource(resolver, source)) { decoder, info, _ ->
+            modern = { ImageDecoder.createSource(resolver, source) },
+            older = { options -> resolver.openInputStream(source)?.use { BitmapFactory.decodeStream(it, null, options) } },
+        )
+    }
+
+    /** The same for a picture already in hand, such as the one inside a song's file. */
+    fun read(picture: ByteArray): ByteArray? = shrink(
+        modern = { ImageDecoder.createSource(ByteBuffer.wrap(picture)) },
+        older = { options -> BitmapFactory.decodeByteArray(picture, 0, picture.size, options) },
+    )
+
+    /**
+     * Decodes a picture no larger than [MaxSide] and encodes it as a JPEG. [older] is
+     * asked twice before Android 9: once only for the picture's size, then for the picture.
+     */
+    private fun shrink(
+        modern: () -> ImageDecoder.Source,
+        older: (BitmapFactory.Options) -> Bitmap?,
+    ): ByteArray? = try {
+        val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            ImageDecoder.decodeBitmap(modern()) { decoder, info, _ ->
                 decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
                 val longest = max(info.size.width, info.size.height)
                 if (longest > MaxSide) {
@@ -74,12 +95,10 @@ internal class Pictures(context: Context) {
             }
         } else {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            resolver.openInputStream(source)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+            older(bounds)
             var sample = 1
             while (max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= MaxSide) sample *= 2
-            resolver.openInputStream(source)?.use {
-                BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
-            }
+            older(BitmapFactory.Options().apply { inSampleSize = sample })
         }
         bitmap?.let {
             ByteArrayOutputStream().use { out ->

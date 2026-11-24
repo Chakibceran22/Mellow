@@ -474,6 +474,24 @@ class LibraryViewModel(
         givePicture(ids.toList(), pictureUri)
     }
 
+    /**
+     * The cover one of the songs in the edit sheet wears, given to the rest of them. The
+     * song it comes from is left alone: it has that picture already, and writing it back
+     * into its own file would only make it a copy of itself.
+     */
+    fun useCoverOfEdited(trackId: String) {
+        if (sheet !is LibrarySheet.EditSongs) return
+        val tracks = editing?.tracks ?: return
+        val from = tracks.firstOrNull { it.id == trackId } ?: return
+        val others = tracks.filter { it.artwork.uri != from.artwork.uri }.map(Track::id)
+        sheet = null
+        if (others.isEmpty()) {
+            say("They already share this cover", selectionUsed = true)
+            return
+        }
+        givePicture(others, from.artwork.uri)
+    }
+
     /** Back to the pictures they came with, for every song in the edit sheet. */
     fun useOwnCoversForEdited() {
         val ids = (sheet as? LibrarySheet.EditSongs)?.trackIds ?: return

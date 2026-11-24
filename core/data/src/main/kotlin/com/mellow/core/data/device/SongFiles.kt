@@ -79,6 +79,25 @@ internal class SongFiles(context: Context) {
         stageOriginal(trackId, current)
     }
 
+    /**
+     * The picture inside this song's file, as it is stored there, or null if it has none
+     * or the file cannot be read. Only reads: the file is opened as any player opens it.
+     */
+    suspend fun picture(trackId: Long): ByteArray? = withContext(Dispatchers.IO) {
+        val reader = MediaMetadataRetriever()
+        try {
+            reader.setDataSource(context, address(trackId))
+            reader.embeddedPicture
+        } catch (_: RuntimeException) {
+            null
+        } finally {
+            try {
+                reader.release()
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     /** True if this song has been changed here and what it said before is kept. Cheap; see [changedParts] for which parts. */
     fun hasOriginal(trackId: Long): Boolean = originalTag(trackId).exists()
 

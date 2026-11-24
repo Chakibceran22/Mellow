@@ -65,6 +65,7 @@ import kotlin.math.max
  * @param uri where the image lives on this device. Null is treated as having no cover.
  * @param elevation lifts the cover off the surface with a soft shadow.
  * @param emptyIcon what the plain tile shows when there is no cover.
+ * @param onNoCover called once it is known that there is no cover to show.
  */
 @Composable
 fun CoverArt(
@@ -74,6 +75,7 @@ fun CoverArt(
     elevation: Dp = 0.dp,
     contentDescription: String? = null,
     emptyIcon: ImageVector = MellowIcons.NoCover,
+    onNoCover: (() -> Unit)? = null,
 ) {
     val colors = MellowTheme.colors
     val context = LocalPlatformContext.current
@@ -101,7 +103,10 @@ fun CoverArt(
         contentScale = ContentScale.Crop,
         error = noCover,
         onSuccess = { settled = true },
-        onError = { settled = true },
+        onError = {
+            settled = true
+            onNoCover?.invoke()
+        },
         modifier = modifier
             // Only something solid casts a shadow; under a see-through placeholder it would show as a stain.
             .shadow(if (settled) elevation else 0.dp, shape.asShadowCaster(), clip = false, ambientColor = colors.shadow, spotColor = colors.shadow)

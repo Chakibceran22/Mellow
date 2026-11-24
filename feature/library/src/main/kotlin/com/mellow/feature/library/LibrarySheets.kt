@@ -176,6 +176,7 @@ fun BoxScope.LibrarySheets(viewModel: LibraryViewModel, onDeleteFromPhone: (Set<
                         editing = editing,
                         writesToSongs = viewModel.writesToSongs,
                         onChoosePicture = choosePicture,
+                        onUseCoverOf = viewModel::useCoverOfEdited,
                         onUseOwnCovers = viewModel::useOwnCoversForEdited,
                     )
                 }
@@ -322,12 +323,17 @@ private fun EditSong(
 /**
  * Several songs at once: the one thing that can be shared between them is a cover. It
  * says which albums they come from, since that is usually why they need one.
+ *
+ * The cover can be a picture from the phone, or the one that one of them already wears:
+ * a tap on it gives it to the rest. A song with no picture has nothing to give, and its
+ * tile does nothing.
  */
 @Composable
 private fun EditSongsTogether(
     editing: EditingSongs,
     writesToSongs: Boolean,
     onChoosePicture: () -> Unit,
+    onUseCoverOf: (trackId: String) -> Unit,
     onUseOwnCovers: () -> Unit,
 ) {
     val colors = MellowTheme.colors
@@ -345,12 +351,36 @@ private fun EditSongsTogether(
         color = colors.inkMuted,
     )
 
-    // Their covers as they are now, each once.
+    // Their covers as they are now, each once. With only one there is nothing to choose between.
     val covers = remember(editing) { editing.tracks.distinctBy { it.artwork.uri } }
+    var noCover by remember(editing) { mutableStateOf(emptySet<String>()) }
+    val canShare = covers.size > 1 && covers.any { it.id !in noCover }
     Spacer(Modifier.height(14.dp))
+    if (canShare) {
+        Text("Tap a cover to give it to all $count", style = MellowTheme.type.callout, color = colors.inkMuted)
+        Spacer(Modifier.height(10.dp))
+    }
     LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         items(covers, key = { it.id }) { track ->
-            CoverArt(track.artwork.uri, Modifier.size(SongCover), shape = remember { ContinuousCornerShape(SongCoverRadius) })
+            val shareable = canShare && track.id !in noCover
+            CoverArt(
+                uri = track.artwork.uri,
+                modifier = Modifier
+                    .size(SongCover)
+                    .then(
+                        if (shareable) {
+                            Modifier.pressable(
+                                onClick = { onUseCoverOf(track.id) },
+                                onClickLabel = "Give the cover of ${track.title} to all $count",
+                                pressedScale = 0.94f,
+                            )
+                        } else {
+                            Modifier
+                        },
+                    ),
+                shape = remember { ContinuousCornerShape(SongCoverRadius) },
+                onNoCover = { noCover = noCover + track.id },
+            )
         }
     }
 
